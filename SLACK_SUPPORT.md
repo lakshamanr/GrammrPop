@@ -60,9 +60,10 @@ GrammrPop inspects **all available UI Automation properties** for comprehensive 
 | **Name** | Accessible name | `"Message #general"` |
 | **HelpText** | Tooltip/help text | `"Type a message"` |
 | **ClassName** | Window class | `"Chrome_RenderWidgetHostHWND"` |
-| **AriaRole** | ARIA role (web accessibility) | `"textbox"` |
 | **Size** | Width x Height in pixels | `650x120px` |
 | **Position** | X, Y coordinates | `(100, 850)` |
+
+**Note**: ARIA role detection was removed to avoid compilation issues with `LegacyIAccessiblePattern` in some .NET environments.
 
 ---
 
@@ -247,7 +248,6 @@ When you click in a Slack message box, you'll see:
    AutomationId: 'message-input-for-C1234567890'
    Name: 'Message #general'
    HelpText: 'Type your message here'
-   AriaRole: 'textbox'
    Size: 650x120px
    Position: (95, 825)
 

@@ -200,7 +200,6 @@ if (controlType == ControlType.Document)
 - Name (e.g., "Message #general")
 - HelpText (e.g., "Type your message")
 - ClassName (e.g., "Chrome_RenderWidgetHostHWND")
-- AriaRole (via LegacyIAccessiblePattern)
 - Size (width x height in pixels)
 - Position (X, Y coordinates)
 ```
@@ -247,7 +246,6 @@ Every Slack Document control logs:
    AutomationId: 'message-input-for-C1234567890'
    Name: 'Message #general'
    HelpText: 'Type your message here'
-   AriaRole: 'textbox'
    Size: 650x120px
    Position: (95, 825)
 
