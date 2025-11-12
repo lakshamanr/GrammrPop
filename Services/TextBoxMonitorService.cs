@@ -286,12 +286,16 @@ namespace GrammrPop.Services
                 {
                     var lowerClassName = className.ToLower();
 
+                    // TEMPORARILY DISABLED: Notepad++ causes hang due to frequent text extraction
+                    // TODO: Re-enable with proper caching to avoid reading full file every 500ms
+                    /*
                     // Notepad++ uses Scintilla
                     if (lowerClassName.Contains("scintilla"))
                     {
                         Console.WriteLine($"    ✓ Scintilla editor (Notepad++, Sublime)");
                         return true;
                     }
+                    */
 
                     // Visual Studio Code, Browsers (Chrome, Edge) use this
                     if (lowerClassName.Contains("chrome_renderwidgethosthwnd"))
