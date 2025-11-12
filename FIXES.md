@@ -51,6 +51,86 @@ public bool EnableAutoDetect { get; set; } = true; // Now enabled by default
 
 ---
 
+### 4. **Over-Detection Spam** ❌ → ✅
+**Problem**: Accepting EVERYTHING as a textbox
+- Task Manager column headers detected as textboxes
+- Slack documents triggering constant checks
+- Tree view items being monitored
+- Hundreds of false positives flooding the logs
+
+**Root Cause**: Detection logic too broad - accepting Documents, Panes, and many other control types
+
+**Fix**: Created minimal baseline detection (Services/TextBoxMonitorService.cs:232-293)
+```csharp
+// EXPLICITLY REJECT non-input controls
+if (controlType == ControlType.Pane ||        // DISABLE Panes
+    controlType == ControlType.Document)      // DISABLE Documents
+{
+    return false;
+}
+
+// ONLY ACCEPT standard Edit controls
+if (controlType == ControlType.Edit)
+{
+    return true;
+}
+
+// REJECT everything else
+return false;
+```
+
+**Result**: Now ONLY monitors standard textbox Edit controls (Notepad, standard WPF textboxes)
+
+---
+
+### 5. **Notepad++ Complete Hang** ❌ → ✅
+**Problem**: Notepad++ freezing completely when GrammrPop is running
+- Application becomes unresponsive
+- Cannot type or click
+- Must force-close Notepad++
+
+**Root Cause**:
+- Scintilla text extraction via Win32 SendMessage API
+- Reading entire file contents every 300ms
+- Large files = megabytes of data repeatedly extracted
+- Blocks UI thread
+
+**Fix**: Disabled Scintilla detection entirely (Services/TextBoxMonitorService.cs:263-272)
+```csharp
+// TEMPORARILY DISABLED: Notepad++ causes hang
+/*
+if (lowerClassName.Contains("scintilla"))
+{
+    return true;
+}
+*/
+```
+
+**Trade-off**: Notepad++ no longer supported, but doesn't freeze
+
+**Future Fix Needed**: Implement caching with file modification tracking, background thread extraction, size limits
+
+---
+
+### 6. **Slow Response Time** ❌ → ✅
+**Problem**: Icon appeared 3+ seconds after typing stopped - felt sluggish
+
+**Fix**: Made grammar checking nearly 3x faster (Services/TextBoxMonitorService.cs):
+```csharp
+// Polling frequency
+Interval = TimeSpan.FromMilliseconds(300) // Was 500ms
+
+// Grammar check delay after typing stops
+Interval = TimeSpan.FromMilliseconds(800) // Was 2000ms
+
+// Stability check before detection
+if (_stableCount >= 1)  // Was >= 2 (1 second wait)
+```
+
+**Result**: Total response time ~1.1 seconds (down from ~3 seconds)
+
+---
+
 ## How It Works Now
 
 ### **Startup Flow**:
@@ -60,13 +140,19 @@ public bool EnableAutoDetect { get; set; } = true; // Now enabled by default
 4. Monitors all textboxes across Windows ✅
 
 ### **Auto-Detection Flow** (Grammarly-style):
-1. You type in any textbox (Notepad, Notepad++, browser, etc.)
-2. App waits 2 seconds after you stop typing
+1. You type in standard textbox (Windows Notepad, standard WPF textboxes)
+2. App waits 0.8 seconds after you stop typing
 3. Checks grammar via LanguageTool API
 4. If errors found:
    - ❌ **Red icon** appears at bottom-right corner
    - 🔢 **Orange badge** shows error count
 5. Click icon → Popup opens with all corrections ready to apply
+
+**Currently Supported**:
+- ✅ Windows Notepad
+- ✅ Standard WPF textboxes
+- ⚠️ Notepad++ temporarily disabled (was causing freeze)
+- ⚠️ Browser textboxes temporarily disabled (causing false positives)
 
 ### **Manual Mode** (Global Hotkey):
 - Press **Ctrl+Alt+G** anywhere
@@ -95,9 +181,9 @@ public bool EnableAutoDetect { get; set; } = true; // Now enabled by default
    - Right-click icon → verify "Auto-Detect Mode" is checked ✓
 
 4. **Test Auto-Detect**:
-   - Open Notepad or Notepad++
+   - Open **Windows Notepad** (not Notepad++)
    - Type some text with errors: "This are a test"
-   - Wait 2 seconds
+   - Wait 1 second
    - Red icon should appear at bottom-right corner with error count "1"
    - Click icon → popup opens with correction ready
 
@@ -120,8 +206,15 @@ public bool EnableAutoDetect { get; set; } = true; // Now enabled by default
 |------|-------|---------|
 | `Models/Settings.cs` | 13 | Changed `EnableAutoDetect` default to `true` |
 | `App.xaml` | 6 | Added `ShutdownMode="OnExplicitShutdown"` |
-| `App.xaml.cs` | 2,17,26,177-245,253 | Added tray icon implementation |
+| `App.xaml.cs` | Various | Tray icon, extensive logging, faster timings |
+| `Services/TextBoxMonitorService.cs` | 42-52, 232-293, 300ms/800ms timers | Scintilla support (disabled), minimal detection, speed improvements, extensive logging |
 | `GrammrPop.csproj` | 20 | Added Hardcodet.NotifyIcon.Wpf package |
+
+### Key Changes to TextBoxMonitorService.cs:
+- **Lines 60-69**: Reduced polling to 300ms, grammar check delay to 800ms
+- **Lines 232-293**: Simplified IsTextControl() to ONLY accept Edit controls
+- **Lines 357-391**: Added Scintilla support (currently disabled)
+- **Throughout**: Added extensive Console.WriteLine() debugging statements
 
 ---
 
@@ -130,12 +223,17 @@ public bool EnableAutoDetect { get; set; } = true; // Now enabled by default
 ✅ Auto-detect enabled by default
 ✅ App runs in background without exiting
 ✅ System tray icon with full controls
-✅ Real-time grammar checking (2-second debounce)
+✅ Fast grammar checking (0.8-second debounce, ~1.1s total response)
 ✅ Red icon with error count badge (Grammarly-style)
 ✅ Bottom-right positioning
-✅ Supports Notepad, Notepad++, browsers, code editors
+✅ Supports Windows Notepad and standard WPF textboxes
 ✅ Global hotkey (Ctrl+Alt+G)
 ✅ One-click corrections
+✅ Extensive console logging for debugging
+✅ No more false positives (Task Manager, Slack, etc.)
+✅ No more Notepad++ freeze
+
+⚠️ **Minimal Baseline**: Currently only monitors Edit controls (Notepad) for reliability
 
 ---
 
@@ -153,13 +251,64 @@ public bool EnableAutoDetect { get; set; } = true; // Now enabled by default
 
 ---
 
-## Next Steps
+## Console Output (Debugging)
 
-1. Test on Windows machine
-2. Verify all features work as expected
-3. Report any issues found
-4. Consider adding custom icon (currently using default app icon)
+The app now includes extensive console logging. When running from command line (`dotnet run`), you'll see:
+
+```
+===========================================
+🚀 STARTING AUTO-DETECT MODE
+===========================================
+✓ Floating icon window created
+✓ Grammar client created
+✓ Text box monitor started - polling every 300ms
+✓ Auto-detect is now ACTIVE
+⚡ FAST MODE: Grammar checked 0.8s after typing stops
+→ Focus any textbox and type to test...
+
+✓✓✓ TEXTBOX DETECTED!
+    Type: ControlType.Edit
+    Class: Edit
+    Process: notepad
+    Text length: 14 chars
+
+📝 TEXT CHANGED!
+   ⚡ Starting 0.8-second countdown before grammar check...
+
+🔍 GRAMMAR CHECK STARTED
+   Text to check: "This are a test"
+   ✅ FOUND 1 GRAMMAR ERROR(S)!
+   Error 1: "are" → "is" (Subject-Verb Agreement)
+
+📍 SHOWING ICON: 1 errors found at position (823, 456)
+```
+
+This helps verify the app is working correctly!
 
 ---
 
-**Status**: Ready for Windows testing! 🚀
+## Next Steps
+
+1. **Test on Windows machine**
+2. **Verify Notepad detection works**:
+   - Open Windows Notepad
+   - Type text with errors
+   - Verify icon appears after ~1 second
+3. **Check console output** to see what's happening
+4. **Report results**: What works, what doesn't
+5. **If baseline works**: Can incrementally add back browser/Notepad++ support
+
+---
+
+## Known Issues to Fix Later
+
+1. **Notepad++ support**: Need caching mechanism to avoid hang
+2. **Browser textboxes**: Need better Document/Pane filtering to avoid false positives
+3. **Custom icon**: Currently using default app icon
+4. **Performance**: Consider background thread for text extraction
+
+---
+
+**Status**: Minimal working version ready for testing! 🎯
+
+**Focus**: Verify Notepad detection works reliably before adding more features.
