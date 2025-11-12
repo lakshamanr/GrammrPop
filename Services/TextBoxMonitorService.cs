@@ -302,7 +302,17 @@ namespace GrammrPop.Services
                                 // This filters out full-window display areas
                                 if (rect.Value.Width < 2000 && rect.Value.Height < 500)
                                 {
-                                    var processName = GetProcessName(element);
+                                    // Get process name for logging
+                                    var processName = "unknown";
+                                    try
+                                    {
+                                        var hwnd = new IntPtr(element.Current.NativeWindowHandle);
+                                        GetWindowThreadProcessId(hwnd, out uint processId);
+                                        var process = System.Diagnostics.Process.GetProcessById((int)processId);
+                                        processName = process.ProcessName;
+                                    }
+                                    catch { /* Ignore process name errors */ }
+
                                     Console.WriteLine($"    ✓ Editable Document control (likely {processName} input box)");
                                     Console.WriteLine($"      Size: {rect.Value.Width:F0}x{rect.Value.Height:F0}px");
                                     return true;
