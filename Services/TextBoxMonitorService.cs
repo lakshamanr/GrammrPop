@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -38,6 +39,18 @@ namespace GrammrPop.Services
 
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, StringBuilder lParam);
+
+        // Scintilla messages
+        private const uint SCI_GETLENGTH = 2006;
+        private const uint SCI_GETTEXT = 2182;
+        private const uint WM_GETTEXT = 0x000D;
+        private const uint WM_GETTEXTLENGTH = 0x000E;
 
         public TextBoxMonitorService(LanguageToolClient grammarClient, SettingsService settingsService)
         {
@@ -363,11 +376,21 @@ namespace GrammrPop.Services
         {
             try
             {
-                // Try ValuePattern first (for textboxes)
+                var className = element.Current.ClassName;
+
+                // Special handling for Scintilla controls (Notepad++, Sublime Text, etc.)
+                if (!string.IsNullOrEmpty(className) && className.ToLower().Contains("scintilla"))
+                {
+                    return GetScintillaText(element);
+                }
+
+                // Try ValuePattern first (for standard textboxes)
                 if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? valuePattern))
                 {
                     var pattern = (ValuePattern)valuePattern;
-                    return pattern.Current.Value ?? string.Empty;
+                    var text = pattern.Current.Value ?? string.Empty;
+                    if (!string.IsNullOrEmpty(text))
+                        return text;
                 }
 
                 // Try TextPattern (for rich text controls)
@@ -375,13 +398,68 @@ namespace GrammrPop.Services
                 {
                     var pattern = (TextPattern)textPattern;
                     var range = pattern.DocumentRange;
-                    return range.GetText(-1) ?? string.Empty;
+                    var text = range.GetText(-1) ?? string.Empty;
+                    if (!string.IsNullOrEmpty(text))
+                        return text;
                 }
+
+                // Fallback: Try WM_GETTEXT for other controls
+                try
+                {
+                    var hwnd = new IntPtr(element.Current.NativeWindowHandle);
+                    if (hwnd != IntPtr.Zero)
+                    {
+                        int length = (int)SendMessage(hwnd, WM_GETTEXTLENGTH, IntPtr.Zero, IntPtr.Zero);
+                        if (length > 0)
+                        {
+                            StringBuilder sb = new StringBuilder(length + 1);
+                            SendMessage(hwnd, WM_GETTEXT, new IntPtr(sb.Capacity), sb);
+                            return sb.ToString();
+                        }
+                    }
+                }
+                catch { /* Ignore WM_GETTEXT failures */ }
 
                 return string.Empty;
             }
             catch
             {
+                return string.Empty;
+            }
+        }
+
+        private string GetScintillaText(AutomationElement element)
+        {
+            try
+            {
+                var hwnd = new IntPtr(element.Current.NativeWindowHandle);
+                if (hwnd == IntPtr.Zero)
+                    return string.Empty;
+
+                // Get text length using Scintilla message
+                int length = (int)SendMessage(hwnd, SCI_GETLENGTH, IntPtr.Zero, IntPtr.Zero);
+
+                if (length <= 0)
+                    return string.Empty;
+
+                // Limit text length to prevent huge allocations
+                if (length > 1000000) // 1 MB limit
+                {
+                    Console.WriteLine($"   ⚠️  Scintilla text too large ({length} bytes), truncating to 1MB");
+                    length = 1000000;
+                }
+
+                // Get text using Scintilla message
+                StringBuilder sb = new StringBuilder(length + 1);
+                SendMessage(hwnd, SCI_GETTEXT, new IntPtr(length + 1), sb);
+
+                var text = sb.ToString();
+                Console.WriteLine($"   ✓ Extracted {text.Length} chars from Scintilla");
+                return text;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"   ❌ Failed to get Scintilla text: {ex.Message}");
                 return string.Empty;
             }
         }
