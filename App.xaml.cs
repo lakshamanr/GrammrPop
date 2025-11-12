@@ -26,6 +26,12 @@ namespace GrammrPop
             // Create system tray icon
             CreateTrayIcon();
 
+            // Show startup notification
+            _trayIcon?.ShowBalloonTip(
+                "GrammrPop Started",
+                $"Auto-Detect: {(_settingsService.CurrentSettings.EnableAutoDetect ? "ON" : "OFF")}\nHotkey: Ctrl+Alt+G",
+                BalloonIcon.Info);
+
             // Register global hotkey (default Ctrl+Alt+G)
             try
             {
@@ -130,20 +136,32 @@ namespace GrammrPop
         {
             Dispatcher.Invoke(() =>
             {
-                if (_floatingIcon == null)
-                    return;
+                try
+                {
+                    if (_floatingIcon == null)
+                        return;
 
-                // Only show icon when errors found (Grammarly-style)
-                if (e.ErrorCount > 0)
-                {
-                    System.Diagnostics.Debug.WriteLine($"📍 Showing icon with {e.ErrorCount} errors");
-                    _floatingIcon.ShowWithErrors(e.Bounds, e.ErrorCount, e.Matches, e.OriginalText, e.Element);
+                    // Only show icon when errors found (Grammarly-style)
+                    if (e.ErrorCount > 0)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"📍 Showing icon with {e.ErrorCount} errors at ({e.Bounds.X}, {e.Bounds.Y})");
+                        _floatingIcon.ShowWithErrors(e.Bounds, e.ErrorCount, e.Matches, e.OriginalText, e.Element);
+                    }
+                    else
+                    {
+                        // Hide icon when no errors
+                        System.Diagnostics.Debug.WriteLine("✓ No errors - hiding icon");
+                        _floatingIcon.Hide();
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    // Hide icon when no errors
-                    System.Diagnostics.Debug.WriteLine("✓ No errors - hiding icon");
-                    _floatingIcon.Hide();
+                    System.Diagnostics.Debug.WriteLine($"❌ Error in OnGrammarErrorsFound: {ex.Message}");
+                    MessageBox.Show(
+                        $"Error showing grammar icon: {ex.Message}",
+                        "GrammrPop Error",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
                 }
             });
         }

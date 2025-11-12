@@ -104,14 +104,24 @@ namespace GrammrPop.Services
                     var controlType = focusedElement.Current.ControlType.ProgrammaticName;
                     var className = focusedElement.Current.ClassName;
                     var name = focusedElement.Current.Name;
+                    var processName = "";
+
+                    try
+                    {
+                        var hwnd = new IntPtr(focusedElement.Current.NativeWindowHandle);
+                        GetWindowThreadProcessId(hwnd, out uint processId);
+                        var process = System.Diagnostics.Process.GetProcessById((int)processId);
+                        processName = process.ProcessName;
+                    }
+                    catch { /* Ignore process name errors */ }
 
                     if (!isTextControl)
                     {
-                        System.Diagnostics.Debug.WriteLine($"❌ Rejected: Type={controlType}, Class={className}, Name={name}");
+                        System.Diagnostics.Debug.WriteLine($"❌ Rejected: Type={controlType}, Class={className}, Process={processName}");
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine($"✓ Accepted: Type={controlType}, Class={className}, Name={name}");
+                        System.Diagnostics.Debug.WriteLine($"✓✓✓ ACCEPTED: Type={controlType}, Class={className}, Process={processName}");
                     }
                 }
                 catch { /* Ignore debug logging errors */ }
@@ -429,7 +439,14 @@ namespace GrammrPop.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error checking grammar: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"❌ Error checking grammar: {ex.Message}\n{ex.StackTrace}");
+
+                // Show error to user
+                System.Windows.MessageBox.Show(
+                    $"Failed to check grammar:\n\n{ex.Message}\n\nCheck your internet connection and LanguageTool settings.",
+                    "GrammrPop - Grammar Check Error",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Warning);
             }
             finally
             {
