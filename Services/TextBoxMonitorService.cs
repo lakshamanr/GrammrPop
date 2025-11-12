@@ -14,7 +14,10 @@ namespace GrammrPop.Services
     public class TextBoxMonitorService : IDisposable
     {
         private readonly DispatcherTimer _monitorTimer;
+        private readonly DispatcherTimer _hideDelayTimer;
         private AutomationElement? _lastFocusedElement;
+        private AutomationElement? _currentStableElement;
+        private int _stableCount = 0;
         private readonly object _lockObject = new object();
         private bool _isMonitoring;
 
@@ -31,9 +34,15 @@ namespace GrammrPop.Services
         {
             _monitorTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(300) // Check every 300ms
+                Interval = TimeSpan.FromMilliseconds(500) // Reduced frequency to 500ms
             };
             _monitorTimer.Tick += MonitorTimer_Tick;
+
+            _hideDelayTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(500) // Wait 500ms before hiding
+            };
+            _hideDelayTimer.Tick += HideDelayTimer_Tick;
         }
 
         public void Start()
@@ -68,43 +77,65 @@ namespace GrammrPop.Services
                     return;
                 }
 
-                // Check if it's a different element
-                lock (_lockObject)
-                {
-                    if (IsSameElement(focusedElement, _lastFocusedElement))
-                        return;
-
-                    _lastFocusedElement = focusedElement;
-                }
-
                 // Check if it's a text control
                 var isTextControl = IsTextControl(focusedElement);
-                var controlType = focusedElement.Current.ControlType.ProgrammaticName;
-                var className = focusedElement.Current.ClassName;
 
-                System.Diagnostics.Debug.WriteLine($"Focused: {controlType}, Class: {className}, IsText: {isTextControl}");
-
-                if (isTextControl)
+                if (!isTextControl)
                 {
-                    // Get control information
-                    var rect = GetElementBounds(focusedElement);
-                    var text = GetElementText(focusedElement);
-
-                    System.Diagnostics.Debug.WriteLine($"  -> Bounds: {rect?.Width}x{rect?.Height}, TextLen: {text?.Length ?? 0}");
-
-                    if (rect.HasValue && rect.Value.Width > 20 && rect.Value.Height > 10)
+                    // Not a text control - start hide timer
+                    if (_currentStableElement != null)
                     {
-                        TextBoxFocused?.Invoke(this, new TextBoxDetectedEventArgs
-                        {
-                            Element = focusedElement,
-                            Bounds = rect.Value,
-                            Text = text
-                        });
+                        HandleFocusLost();
                     }
+                    return;
                 }
-                else
+
+                lock (_lockObject)
                 {
-                    HandleFocusLost();
+                    // Cancel any pending hide
+                    _hideDelayTimer.Stop();
+
+                    // Check if this is the same element as before
+                    if (IsSameElement(focusedElement, _currentStableElement))
+                    {
+                        // Same element - no need to re-fire event
+                        return;
+                    }
+
+                    // New element - check if it's stable
+                    if (IsSameElement(focusedElement, _lastFocusedElement))
+                    {
+                        _stableCount++;
+
+                        // Only fire event after element has been stable for 2 polls (1 second)
+                        if (_stableCount >= 2)
+                        {
+                            _currentStableElement = focusedElement;
+                            _stableCount = 0;
+
+                            // Get control information
+                            var rect = GetElementBounds(focusedElement);
+                            var text = GetElementText(focusedElement);
+
+                            if (rect.HasValue && rect.Value.Width > 20 && rect.Value.Height > 10)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"✓ Stable textbox detected: {rect?.Width}x{rect?.Height}");
+
+                                TextBoxFocused?.Invoke(this, new TextBoxDetectedEventArgs
+                                {
+                                    Element = focusedElement,
+                                    Bounds = rect.Value,
+                                    Text = text
+                                });
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Different element - reset stability counter
+                        _lastFocusedElement = focusedElement;
+                        _stableCount = 0;
+                    }
                 }
             }
             catch (Exception ex)
@@ -210,22 +241,36 @@ namespace GrammrPop.Services
             }
         }
 
-        private void HandleFocusLost()
+        private void HideDelayTimer_Tick(object? sender, EventArgs e)
         {
+            _hideDelayTimer.Stop();
+
             lock (_lockObject)
             {
-                if (_lastFocusedElement != null)
-                {
-                    _lastFocusedElement = null;
-                    TextBoxLostFocus?.Invoke(this, EventArgs.Empty);
-                }
+                _lastFocusedElement = null;
+                _currentStableElement = null;
+                _stableCount = 0;
+                TextBoxLostFocus?.Invoke(this, EventArgs.Empty);
+                System.Diagnostics.Debug.WriteLine("Icon hidden (delayed)");
+            }
+        }
+
+        private void HandleFocusLost()
+        {
+            // Don't hide immediately - use delay timer to prevent flickering
+            if (!_hideDelayTimer.IsEnabled)
+            {
+                System.Diagnostics.Debug.WriteLine("Starting hide delay timer...");
+                _hideDelayTimer.Start();
             }
         }
 
         public void Dispose()
         {
             Stop();
+            _hideDelayTimer.Stop();
             _monitorTimer.Tick -= MonitorTimer_Tick;
+            _hideDelayTimer.Tick -= HideDelayTimer_Tick;
         }
     }
 

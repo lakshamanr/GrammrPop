@@ -30,6 +30,15 @@ namespace GrammrPop.Views
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool GetCaretPos(out System.Drawing.Point lpPoint);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ClientToScreen(IntPtr hWnd, ref System.Drawing.Point lpPoint);
+
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_NOACTIVATE = 0x08000000;
         private const int WS_EX_TOOLWINDOW = 0x00000080;
@@ -46,9 +55,29 @@ namespace GrammrPop.Views
             _targetElement = element;
             _targetText = text;
 
-            // Position icon at the right edge of the textbox, vertically centered
-            var iconX = textBoxBounds.Right - Width - 5; // 5px padding from right edge
-            var iconY = textBoxBounds.Top + (textBoxBounds.Height / 2) - (Height / 2);
+            double iconX, iconY;
+
+            // Try to get cursor position first (more accurate)
+            var hwnd = GetForegroundWindow();
+            var caretPoint = new System.Drawing.Point(0, 0);
+            bool gotCaret = GetCaretPos(out caretPoint);
+
+            if (gotCaret && ClientToScreen(hwnd, ref caretPoint))
+            {
+                // Position icon to the right of the cursor
+                iconX = caretPoint.X + 10; // 10px offset from cursor
+                iconY = caretPoint.Y - (Height / 2); // Vertically centered with cursor line
+
+                System.Diagnostics.Debug.WriteLine($"Using caret position: ({caretPoint.X}, {caretPoint.Y})");
+            }
+            else
+            {
+                // Fallback: position at right edge of textbox
+                iconX = textBoxBounds.Right - Width - 8;
+                iconY = textBoxBounds.Top + (textBoxBounds.Height / 2) - (Height / 2);
+
+                System.Diagnostics.Debug.WriteLine($"Using textbox edge (no caret)");
+            }
 
             // Ensure icon stays on screen
             var screenBounds = SystemParameters.WorkArea;
@@ -58,7 +87,7 @@ namespace GrammrPop.Views
             Left = iconX;
             Top = iconY;
 
-            System.Diagnostics.Debug.WriteLine($"Positioning icon at: ({iconX}, {iconY}), Size: {Width}x{Height}");
+            System.Diagnostics.Debug.WriteLine($"Final icon position: ({iconX}, {iconY}), Size: {Width}x{Height}");
 
             if (!IsVisible)
             {
@@ -68,7 +97,6 @@ namespace GrammrPop.Views
 
             // Ensure the window is topmost
             Topmost = true;
-            Activate();
         }
 
         private void IconButton_Click(object sender, RoutedEventArgs e)
