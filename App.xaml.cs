@@ -11,6 +11,8 @@ namespace GrammrPop
     public partial class App : Application
     {
         private SettingsService _settingsService = null!;
+        private TextBoxMonitorService? _textBoxMonitor;
+        private FloatingIconWindow? _floatingIcon;
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
@@ -32,8 +34,14 @@ namespace GrammrPop
                     MessageBoxImage.Warning);
             }
 
+            // Initialize auto-detect feature if enabled
+            if (_settingsService.CurrentSettings.EnableAutoDetect)
+            {
+                StartAutoDetect();
+            }
+
             // Don't show main window - app runs in system tray / background
-            // Popup appears on hotkey
+            // Popup appears on hotkey or icon click
         }
 
         private void RegisterHotkey()
@@ -65,8 +73,91 @@ namespace GrammrPop
             popup.Focus();
         }
 
+        private void StartAutoDetect()
+        {
+            try
+            {
+                // Create floating icon window
+                _floatingIcon = new FloatingIconWindow(_settingsService);
+
+                // Create and configure text box monitor
+                _textBoxMonitor = new TextBoxMonitorService();
+                _textBoxMonitor.TextBoxFocused += OnTextBoxFocused;
+                _textBoxMonitor.TextBoxLostFocus += OnTextBoxLostFocus;
+                _textBoxMonitor.Start();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to start auto-detect feature: {ex.Message}\n\nYou can disable it in settings.",
+                    "GrammrPop - Auto-Detect Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
+
+        private void StopAutoDetect()
+        {
+            if (_textBoxMonitor != null)
+            {
+                _textBoxMonitor.TextBoxFocused -= OnTextBoxFocused;
+                _textBoxMonitor.TextBoxLostFocus -= OnTextBoxLostFocus;
+                _textBoxMonitor.Stop();
+                _textBoxMonitor.Dispose();
+                _textBoxMonitor = null;
+            }
+
+            if (_floatingIcon != null)
+            {
+                _floatingIcon.Hide();
+                _floatingIcon.Close();
+                _floatingIcon = null;
+            }
+        }
+
+        private void OnTextBoxFocused(object? sender, TextBoxDetectedEventArgs e)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (_floatingIcon != null && !string.IsNullOrWhiteSpace(e.Text))
+                {
+                    _floatingIcon.PositionNearTextBox(e.Bounds, e.Text, e.Element);
+                }
+            });
+        }
+
+        private void OnTextBoxLostFocus(object? sender, EventArgs e)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _floatingIcon?.Hide();
+            });
+        }
+
+        public void RefreshAutoDetect()
+        {
+            // Called when settings change
+            if (_settingsService.CurrentSettings.EnableAutoDetect)
+            {
+                if (_textBoxMonitor == null)
+                {
+                    StartAutoDetect();
+                }
+            }
+            else
+            {
+                if (_textBoxMonitor != null)
+                {
+                    StopAutoDetect();
+                }
+            }
+        }
+
         private void Application_Exit(object sender, ExitEventArgs e)
         {
+            // Cleanup auto-detect
+            StopAutoDetect();
+
             // Cleanup hotkey
             try
             {

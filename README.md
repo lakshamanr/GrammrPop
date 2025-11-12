@@ -4,13 +4,14 @@
 
 ## Features
 
-- **Global Hotkey**: Press `Ctrl+Alt+G` from any application to open the grammar checker
-- **Instant Checking**: Paste or type text and get immediate grammar suggestions
-- **Smart Corrections**: View and selectively apply suggestions with context
-- **Auto-Paste**: Optionally paste corrected text back to your original application
-- **Privacy Mode**: Use a local LanguageTool server for offline/private checking
-- **Multi-Language**: Support for English (US/GB), German, French, Spanish, and more
-- **Customizable**: Configure API endpoint, language, hotkey, and behavior
+- **🎯 Smart Auto-Detection** (NEW!): Grammarly-like floating icon appears automatically on textboxes - just click to check grammar!
+- **⌨️ Global Hotkey**: Press `Ctrl+Alt+G` from any application to open the grammar checker
+- **⚡ Instant Checking**: Paste or type text and get immediate grammar suggestions
+- **🎨 Smart Corrections**: View and selectively apply suggestions with context
+- **📋 Auto-Paste**: Optionally paste corrected text back to your original application
+- **🔒 Privacy Mode**: Use a local LanguageTool server for offline/private checking
+- **🌍 Multi-Language**: Support for English (US/GB), German, French, Spanish, and more
+- **⚙️ Customizable**: Configure API endpoint, language, hotkey, and behavior
 
 ## Requirements
 
@@ -43,6 +44,17 @@ Download the latest release from the [Releases page](https://github.com/youruser
 
 ## Usage
 
+GrammrPop offers two ways to check your text:
+
+### Method 1: Smart Auto-Detection (Grammarly-like)
+
+1. **Enable auto-detect**: Open Settings → Enable "Show floating icon on textboxes automatically"
+2. **Focus a textbox**: Click on any text input field in any application
+3. **Click the floating icon**: A small green "G" icon appears on the right edge of the textbox
+4. **Check grammar**: The popup opens with your text pre-filled - click "Check Grammar"
+
+### Method 2: Global Hotkey (Traditional)
+
 1. **Launch GrammrPop**: The app runs in the background (no main window)
 
 2. **Trigger the popup**: Press `Ctrl+Alt+G` from any application
@@ -70,6 +82,13 @@ Access settings from the popup window:
 - **Public API**: Uses `https://api.languagetool.org` (free, rate-limited)
 - **Local Server**: Use your own LanguageTool server for privacy (see below)
 - **API Key**: Optional premium API key for enhanced features
+
+### Smart Detection (Grammarly-like)
+- **Enable auto-detect**: Shows a floating icon on textboxes automatically
+- Uses Windows UI Automation to detect text controls
+- Icon appears on the right edge of focused textboxes
+- Click the icon to open GrammrPop with pre-filled text
+- ⚠️ May increase CPU usage slightly when enabled
 
 ### Auto-Paste
 - Enable to automatically paste corrected text back to your previous window
