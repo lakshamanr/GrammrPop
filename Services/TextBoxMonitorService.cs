@@ -270,20 +270,58 @@ namespace GrammrPop.Services
                     controlType == ControlType.ProgressBar ||
                     controlType == ControlType.Slider ||
                     controlType == ControlType.Spinner ||
-                    controlType == ControlType.Pane ||        // DISABLE Panes (causes issues)
-                    controlType == ControlType.Document)      // DISABLE Documents (causes Slack spam)
+                    controlType == ControlType.Pane)          // DISABLE Panes (causes issues)
                 {
                     return false;
                 }
 
-                // ONLY ACCEPT standard Edit controls (Notepad, standard textboxes)
+                // ACCEPT standard Edit controls (Notepad, standard textboxes)
                 if (controlType == ControlType.Edit)
                 {
                     Console.WriteLine($"    ✓ Standard Edit control (Notepad/TextBox)");
                     return true;
                 }
 
-                // REJECT everything else for now
+                // ACCEPT Document controls ONLY if they are editable input boxes
+                // This enables Slack, browser textareas, Discord, Teams, etc.
+                if (controlType == ControlType.Document)
+                {
+                    // Must have ValuePattern to read/write text
+                    if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? valuePattern))
+                    {
+                        var pattern = (ValuePattern)valuePattern;
+
+                        // Must NOT be read-only (filters out Slack message display area)
+                        if (!pattern.Current.IsReadOnly)
+                        {
+                            // Additional safety: Check reasonable size for input box
+                            var rect = GetElementBounds(element);
+                            if (rect.HasValue)
+                            {
+                                // Input boxes are typically < 2000px wide and < 500px tall
+                                // This filters out full-window display areas
+                                if (rect.Value.Width < 2000 && rect.Value.Height < 500)
+                                {
+                                    var processName = GetProcessName(element);
+                                    Console.WriteLine($"    ✓ Editable Document control (likely {processName} input box)");
+                                    Console.WriteLine($"      Size: {rect.Value.Width:F0}x{rect.Value.Height:F0}px");
+                                    return true;
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"    ✗ Document too large ({rect.Value.Width:F0}x{rect.Value.Height:F0}px) - likely display area");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine($"    ✗ Document is read-only - likely display area");
+                        }
+                    }
+                    return false; // Read-only or no ValuePattern = display area, not input
+                }
+
+                // REJECT everything else
                 return false;
             }
             catch
