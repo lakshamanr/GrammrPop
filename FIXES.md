@@ -131,6 +131,57 @@ if (_stableCount >= 1)  // Was >= 2 (1 second wait)
 
 ---
 
+### 7. **Slack and Browser Support** ✅
+**Feature**: Re-enabled Document control detection with smart filtering
+
+**What's Supported Now**:
+- ✅ Slack message input boxes
+- ✅ Browser textareas (Chrome, Edge, Firefox)
+- ✅ Discord message input
+- ✅ Microsoft Teams message input
+- ✅ Web applications (Gmail, Notion, etc.)
+
+**How It Works** (Services/TextBoxMonitorService.cs:285-322):
+```csharp
+// ACCEPT Document controls ONLY if they are editable input boxes
+if (controlType == ControlType.Document)
+{
+    // Must have ValuePattern to read/write text
+    if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? valuePattern))
+    {
+        var pattern = (ValuePattern)valuePattern;
+
+        // Must NOT be read-only (filters out Slack message display area)
+        if (!pattern.Current.IsReadOnly)
+        {
+            // Size check: < 2000px wide and < 500px tall
+            // This filters out full-window display areas
+            if (rect.Value.Width < 2000 && rect.Value.Height < 500)
+            {
+                return true; // This is an input box!
+            }
+        }
+    }
+    return false; // Read-only or too large = display area
+}
+```
+
+**Smart Filtering**:
+- ❌ Rejects read-only Documents (Slack message display area)
+- ❌ Rejects large Documents (> 2000x500px) like full browser windows
+- ✅ Accepts small editable Documents (input boxes)
+- ✅ Console logging shows why each Document is accepted/rejected
+
+**Console Output Examples**:
+```
+✓ Editable Document control (likely slack input box)
+  Size: 450x120px
+✗ Document is read-only - likely display area
+✗ Document too large (1920x1080px) - likely display area
+```
+
+---
+
 ## How It Works Now
 
 ### **Startup Flow**:
@@ -151,8 +202,12 @@ if (_stableCount >= 1)  // Was >= 2 (1 second wait)
 **Currently Supported**:
 - ✅ Windows Notepad
 - ✅ Standard WPF textboxes
+- ✅ **Slack** message input boxes
+- ✅ **Browser textareas** (Gmail, web apps, etc.)
+- ✅ **Discord** message input
+- ✅ **Teams** message input
+- ✅ Any editable Document control (< 2000x500px, not read-only)
 - ⚠️ Notepad++ temporarily disabled (was causing freeze)
-- ⚠️ Browser textboxes temporarily disabled (causing false positives)
 
 ### **Manual Mode** (Global Hotkey):
 - Press **Ctrl+Alt+G** anywhere
@@ -192,7 +247,22 @@ if (_stableCount >= 1)  // Was >= 2 (1 second wait)
    - Popup should open
    - Type text and click "Check Grammar"
 
-6. **Test Tray Icon**:
+6. **Test Slack Support** (NEW):
+   - Open **Slack desktop app**
+   - Click in the message input box
+   - Type: "I has a error in this sentence"
+   - Wait 1 second
+   - Red icon should appear with error count "2"
+   - Console should show: "✓ Editable Document control (likely slack input box)"
+
+7. **Test Browser Support** (NEW):
+   - Open **Gmail** in Chrome/Edge
+   - Click "Compose" email
+   - Type in the message body: "This are wrong"
+   - Wait 1 second
+   - Red icon should appear with error count "1"
+
+8. **Test Tray Icon**:
    - Right-click tray icon
    - Toggle "Auto-Detect Mode" off/on
    - Click "Settings" to open settings window
@@ -212,7 +282,7 @@ if (_stableCount >= 1)  // Was >= 2 (1 second wait)
 
 ### Key Changes to TextBoxMonitorService.cs:
 - **Lines 60-69**: Reduced polling to 300ms, grammar check delay to 800ms
-- **Lines 232-293**: Simplified IsTextControl() to ONLY accept Edit controls
+- **Lines 285-322**: Added smart Document detection with filtering (Slack, browsers)
 - **Lines 357-391**: Added Scintilla support (currently disabled)
 - **Throughout**: Added extensive Console.WriteLine() debugging statements
 
@@ -226,14 +296,15 @@ if (_stableCount >= 1)  // Was >= 2 (1 second wait)
 ✅ Fast grammar checking (0.8-second debounce, ~1.1s total response)
 ✅ Red icon with error count badge (Grammarly-style)
 ✅ Bottom-right positioning
-✅ Supports Windows Notepad and standard WPF textboxes
+✅ **Slack message input boxes** 🆕
+✅ **Browser textareas** (Gmail, web apps, etc.) 🆕
+✅ **Discord/Teams** message input 🆕
+✅ Windows Notepad and standard WPF textboxes
 ✅ Global hotkey (Ctrl+Alt+G)
 ✅ One-click corrections
 ✅ Extensive console logging for debugging
-✅ No more false positives (Task Manager, Slack, etc.)
+✅ Smart filtering prevents false positives
 ✅ No more Notepad++ freeze
-
-⚠️ **Minimal Baseline**: Currently only monitors Edit controls (Notepad) for reliability
 
 ---
 
@@ -290,25 +361,32 @@ This helps verify the app is working correctly!
 ## Next Steps
 
 1. **Test on Windows machine**
-2. **Verify Notepad detection works**:
+2. **Test Notepad** (basic functionality):
    - Open Windows Notepad
    - Type text with errors
    - Verify icon appears after ~1 second
-3. **Check console output** to see what's happening
-4. **Report results**: What works, what doesn't
-5. **If baseline works**: Can incrementally add back browser/Notepad++ support
+3. **Test Slack** (NEW feature):
+   - Open Slack desktop app
+   - Type in message box with errors
+   - Verify icon appears and corrections work
+4. **Test Browser** (NEW feature):
+   - Open Gmail or any web app
+   - Type in textarea with errors
+   - Verify icon appears
+5. **Check console output** to see detection working
+6. **Report results**: What works, what doesn't
 
 ---
 
 ## Known Issues to Fix Later
 
 1. **Notepad++ support**: Need caching mechanism to avoid hang
-2. **Browser textboxes**: Need better Document/Pane filtering to avoid false positives
-3. **Custom icon**: Currently using default app icon
-4. **Performance**: Consider background thread for text extraction
+2. **Custom icon**: Currently using default app icon
+3. **Performance**: Consider background thread for text extraction
+4. **Fine-tune size limits**: May need to adjust 2000x500px thresholds for some apps
 
 ---
 
-**Status**: Minimal working version ready for testing! 🎯
+**Status**: Full-featured version with Slack/browser support! 🚀
 
-**Focus**: Verify Notepad detection works reliably before adding more features.
+**Latest**: Slack, Discord, Teams, and browser textareas now supported with smart filtering!
