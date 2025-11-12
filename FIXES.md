@@ -182,6 +182,117 @@ if (controlType == ControlType.Document)
 
 ---
 
+### 8. **Deep-Dive Slack Enhancement** ✅✅✅
+**MAJOR UPDATE**: Complete rewrite with comprehensive 320-line Slack-specific detection method
+
+**New Dedicated Method**: `IsEditableDocumentControl()` (Services/TextBoxMonitorService.cs:301-630)
+
+#### Slack-Specific Features:
+
+**🎯 Process Detection**:
+- Identifies `slack.exe` via Win32 `GetWindowThreadProcessId()` API
+- Triggers specialized Slack analysis pipeline
+
+**🔍 Deep Property Inspection**:
+```csharp
+// Inspects ALL available properties
+- AutomationId (e.g., "message-input-field")
+- Name (e.g., "Message #general")
+- HelpText (e.g., "Type your message")
+- ClassName (e.g., "Chrome_RenderWidgetHostHWND")
+- AriaRole (via LegacyIAccessiblePattern)
+- Size (width x height in pixels)
+- Position (X, Y coordinates)
+```
+
+**📝 Pattern Matching**:
+```csharp
+var slackIndicators = new[]
+{
+    "message-input",   // Main channel input
+    "composer",        // Rich text composer
+    "msg_input",       // Message input field
+    "search",          // Search boxes
+    "message_input",   // Alternative naming
+    "reply",           // Thread replies
+    "composer-input"   // Composer variant
+};
+```
+
+**📏 Size-Based Input Type Detection**:
+- **Main message input**: 400-1500px wide, 40-300px tall
+- **Thread reply**: 300-1000px wide, 40-200px tall
+- **Search box**: 200-600px wide, 30-50px tall
+- **Rejection**: > 2000px wide or > 600px tall (display areas)
+
+**🔀 Dual Pattern Support**:
+- ✅ **ValuePattern** (primary): For standard text input/output
+- ✅ **TextPattern** (fallback): For rich text controls
+- Accepts if EITHER pattern is available and editable
+
+**🛡️ Multi-Layer Filtering**:
+1. Must be from Slack process
+2. Must have reasonable size (100-2000px wide, 20-600px tall)
+3. Must have editable ValuePattern OR TextPattern
+4. Must NOT be read-only (filters message display)
+
+**📊 Extensive Logging**:
+
+Every Slack Document control logs:
+```
+🔍 Analyzing Document control:
+   Process: slack (PID: 15432)
+   ClassName: Chrome_RenderWidgetHostHWND
+   IsSlack: true, IsBrowser: false
+   AutomationId: 'message-input-for-C1234567890'
+   Name: 'Message #general'
+   HelpText: 'Type your message here'
+   AriaRole: 'textbox'
+   Size: 650x120px
+   Position: (95, 825)
+
+🎯 SLACK DETECTED - Performing deep Slack analysis...
+
+✓✓✓ SLACK INPUT IDENTIFIED (pattern match)!
+    Matched pattern in AutomationId/Name/HelpText
+
+    ✓ Has editable ValuePattern (can read/write)
+    ✓ Has TextPattern with DocumentRange
+
+    Size analysis:
+      IsReasonableSize: true
+      IsProbablyMessageInput: true
+      IsProbablyThreadReply: false
+      IsProbablySearch: false
+
+✅✅✅ SLACK MESSAGE INPUT ACCEPTED!
+    Size: 650x120px - VALID
+    Patterns: ValuePattern=true, TextPattern=true
+```
+
+**🎯 Slack Input Types Supported**:
+- ✅ Main channel message boxes (#general, #random, etc.)
+- ✅ Direct message inputs (1-on-1 and group DMs)
+- ✅ Thread replies (side panel)
+- ✅ Search boxes (top-right corner)
+- ✅ Rich text composer mode
+- ✅ Edit message mode
+
+**🔧 Special Handling**:
+- **Pattern-based fallback**: Accepts even without size if AutomationId matches patterns
+- **Read-only detection**: Filters out message display areas
+- **Size analysis**: Identifies specific input type (MESSAGE INPUT, THREAD REPLY, SEARCH BOX)
+
+**📖 Full Documentation**: See `SLACK_SUPPORT.md` for complete technical details (60+ page documentation)
+
+**Also Enhanced**:
+- ✅ Discord detection (similar deep analysis)
+- ✅ Teams detection (similar deep analysis)
+- ✅ Browser textarea detection (Chrome/Edge/Firefox)
+- ✅ Generic Document fallback for unknown apps
+
+---
+
 ## How It Works Now
 
 ### **Startup Flow**:
