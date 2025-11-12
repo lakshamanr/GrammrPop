@@ -59,13 +59,13 @@ namespace GrammrPop.Services
 
             _monitorTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(500)
+                Interval = TimeSpan.FromMilliseconds(300) // Check every 300ms for faster detection
             };
             _monitorTimer.Tick += MonitorTimer_Tick;
 
             _textCheckTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(2) // Check 2 seconds after typing stops
+                Interval = TimeSpan.FromMilliseconds(800) // Check 0.8 seconds after typing stops (faster than 2 sec)
             };
             _textCheckTimer.Tick += TextCheckTimer_Tick;
 
@@ -166,8 +166,8 @@ namespace GrammrPop.Services
                     {
                         _stableCount++;
 
-                        // Only fire event after element has been stable for 2 polls (1 second)
-                        if (_stableCount >= 2)
+                        // Only fire event after element has been stable for 1 poll (300ms) - FASTER!
+                        if (_stableCount >= 1)
                         {
                             _currentStableElement = focusedElement;
                             _stableCount = 0;
@@ -178,10 +178,10 @@ namespace GrammrPop.Services
 
                             if (rect.HasValue && rect.Value.Width > 20 && rect.Value.Height > 10)
                             {
-                                Console.WriteLine($"✓ Textbox is STABLE (confirmed after 1 second)");
+                                Console.WriteLine($"✓ Textbox is STABLE (confirmed after 300ms)");
                                 Console.WriteLine($"  Size: {rect?.Width:F0}x{rect?.Height:F0} pixels");
                                 Console.WriteLine($"  Current text length: {text.Length} chars");
-                                Console.WriteLine($"  Starting text monitoring...");
+                                Console.WriteLine($"  ⚡ Fast mode: Grammar checked 0.8s after typing stops");
                                 System.Diagnostics.Debug.WriteLine($"✓ Stable textbox detected: {rect?.Width}x{rect?.Height}");
 
                                 _currentText = text;
@@ -495,7 +495,7 @@ namespace GrammrPop.Services
                     Console.WriteLine($"\n📝 TEXT CHANGED!");
                     Console.WriteLine($"   New length: {newText.Length} chars");
                     Console.WriteLine($"   Preview: \"{newText.Substring(0, Math.Min(50, newText.Length))}{(newText.Length > 50 ? "..." : "")}\"");
-                    Console.WriteLine($"   ⏱️  Starting 2-second countdown before grammar check...");
+                    Console.WriteLine($"   ⚡ Starting 0.8-second countdown before grammar check...");
                     System.Diagnostics.Debug.WriteLine($"Text changed: length={newText.Length}");
 
                     // Restart the check timer (debouncing)

@@ -107,8 +107,9 @@ namespace GrammrPop
                 _textBoxMonitor.TextBoxLostFocus += OnTextBoxLostFocus;
                 _textBoxMonitor.Start();
 
-                Console.WriteLine("✓ Text box monitor started - polling every 500ms");
+                Console.WriteLine("✓ Text box monitor started - polling every 300ms");
                 Console.WriteLine("✓ Auto-detect is now ACTIVE");
+                Console.WriteLine("⚡ FAST MODE: Grammar checked 0.8s after typing stops");
                 Console.WriteLine("→ Focus any textbox and type to test...\n");
 
                 System.Diagnostics.Debug.WriteLine("✓ Auto-detect started with real-time grammar checking");
