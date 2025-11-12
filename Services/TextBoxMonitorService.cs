@@ -269,88 +269,21 @@ namespace GrammrPop.Services
                     controlType == ControlType.Separator ||
                     controlType == ControlType.ProgressBar ||
                     controlType == ControlType.Slider ||
-                    controlType == ControlType.Spinner)
+                    controlType == ControlType.Spinner ||
+                    controlType == ControlType.Pane ||        // DISABLE Panes (causes issues)
+                    controlType == ControlType.Document)      // DISABLE Documents (causes Slack spam)
                 {
                     return false;
                 }
 
-                // ACCEPT standard Edit controls (Notepad, standard textboxes)
+                // ONLY ACCEPT standard Edit controls (Notepad, standard textboxes)
                 if (controlType == ControlType.Edit)
                 {
-                    Console.WriteLine($"    ✓ Standard Edit control");
+                    Console.WriteLine($"    ✓ Standard Edit control (Notepad/TextBox)");
                     return true;
                 }
 
-                // Check for known editor control class names
-                if (!string.IsNullOrEmpty(className))
-                {
-                    var lowerClassName = className.ToLower();
-
-                    // TEMPORARILY DISABLED: Notepad++ causes hang due to frequent text extraction
-                    // TODO: Re-enable with proper caching to avoid reading full file every 500ms
-                    /*
-                    // Notepad++ uses Scintilla
-                    if (lowerClassName.Contains("scintilla"))
-                    {
-                        Console.WriteLine($"    ✓ Scintilla editor (Notepad++, Sublime)");
-                        return true;
-                    }
-                    */
-
-                    // Visual Studio Code, Browsers (Chrome, Edge) use this
-                    if (lowerClassName.Contains("chrome_renderwidgethosthwnd"))
-                    {
-                        Console.WriteLine($"    ✓ Chrome-based editor (VS Code, Browser)");
-                        return true;
-                    }
-
-                    // RichEdit controls (WordPad, etc.)
-                    if (lowerClassName.Contains("richedit"))
-                    {
-                        Console.WriteLine($"    ✓ RichEdit control");
-                        return true;
-                    }
-
-                    // Explicit textbox class names
-                    if (lowerClassName == "textbox" || lowerClassName == "edit")
-                    {
-                        Console.WriteLine($"    ✓ TextBox/Edit class");
-                        return true;
-                    }
-                }
-
-                // ONLY accept Document if it has ValuePattern AND is editable
-                // This catches some web textareas but filters out read-only documents
-                if (controlType == ControlType.Document)
-                {
-                    if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? valuePattern))
-                    {
-                        var pattern = (ValuePattern)valuePattern;
-                        if (!pattern.Current.IsReadOnly)
-                        {
-                            Console.WriteLine($"    ✓ Editable Document with ValuePattern");
-                            return true;
-                        }
-                    }
-                    return false; // Read-only document or no ValuePattern
-                }
-
-                // For Pane controls, be very strict
-                if (controlType == ControlType.Pane)
-                {
-                    // Must have ValuePattern AND be editable
-                    if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? valuePattern))
-                    {
-                        var pattern = (ValuePattern)valuePattern;
-                        if (!pattern.Current.IsReadOnly)
-                        {
-                            Console.WriteLine($"    ✓ Editable Pane with ValuePattern");
-                            return true;
-                        }
-                    }
-                    return false;
-                }
-
+                // REJECT everything else for now
                 return false;
             }
             catch
