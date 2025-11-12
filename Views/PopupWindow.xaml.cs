@@ -254,6 +254,44 @@ namespace GrammrPop.Views
             Close();
         }
 
+        /// <summary>
+        /// Load grammar results directly (called from FloatingIconWindow)
+        /// </summary>
+        public void LoadGrammarResults(Match[] matches, string originalText)
+        {
+            _originalText = originalText;
+            _currentMatches = matches;
+
+            // Convert to UI-friendly suggestions
+            _suggestions.Clear();
+
+            if (matches.Length == 0)
+            {
+                NoSuggestionsText.Text = "✓ No grammar issues found!";
+                NoSuggestionsText.Visibility = Visibility.Visible;
+                SuggestionsListView.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                NoSuggestionsText.Visibility = Visibility.Collapsed;
+                SuggestionsListView.Visibility = Visibility.Visible;
+
+                foreach (var match in matches)
+                {
+                    var errorText = originalText.Substring(match.Offset, match.Length);
+                    var suggestedReplacement = match.Replacements?.FirstOrDefault()?.Value ?? "";
+
+                    _suggestions.Add(new SuggestionItem
+                    {
+                        Match = match,
+                        Accepted = true,
+                        ErrorText = errorText,
+                        SuggestedReplacement = suggestedReplacement
+                    });
+                }
+            }
+        }
+
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
             // Ctrl+Enter to check grammar

@@ -1,6 +1,8 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Automation;
+using GrammrPop.Models;
 using GrammrPop.Services;
 
 namespace GrammrPop.Views
@@ -9,6 +11,7 @@ namespace GrammrPop.Views
     {
         private AutomationElement? _targetElement;
         private string _targetText = string.Empty;
+        private Match[] _errorMatches = Array.Empty<Match>();
         private readonly SettingsService _settingsService;
 
         public FloatingIconWindow(SettingsService settingsService)
@@ -30,15 +33,6 @@ namespace GrammrPop.Views
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern bool GetCaretPos(out System.Drawing.Point lpPoint);
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern IntPtr GetForegroundWindow();
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern bool ClientToScreen(IntPtr hWnd, ref System.Drawing.Point lpPoint);
-
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_NOACTIVATE = 0x08000000;
         private const int WS_EX_TOOLWINDOW = 0x00000080;
@@ -50,34 +44,18 @@ namespace GrammrPop.Views
             SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
         }
 
-        public void PositionNearTextBox(Rect textBoxBounds, string text, AutomationElement element)
+        public void ShowWithErrors(Rect textBoxBounds, int errorCount, Match[] matches, string originalText, AutomationElement element)
         {
             _targetElement = element;
-            _targetText = text;
+            _targetText = originalText;
+            _errorMatches = matches;
 
-            double iconX, iconY;
+            // Update error count badge
+            ErrorCountText.Text = errorCount.ToString();
 
-            // Try to get cursor position first (more accurate)
-            var hwnd = GetForegroundWindow();
-            var caretPoint = new System.Drawing.Point(0, 0);
-            bool gotCaret = GetCaretPos(out caretPoint);
-
-            if (gotCaret && ClientToScreen(hwnd, ref caretPoint))
-            {
-                // Position icon to the right of the cursor
-                iconX = caretPoint.X + 10; // 10px offset from cursor
-                iconY = caretPoint.Y - (Height / 2); // Vertically centered with cursor line
-
-                System.Diagnostics.Debug.WriteLine($"Using caret position: ({caretPoint.X}, {caretPoint.Y})");
-            }
-            else
-            {
-                // Fallback: position at right edge of textbox
-                iconX = textBoxBounds.Right - Width - 8;
-                iconY = textBoxBounds.Top + (textBoxBounds.Height / 2) - (Height / 2);
-
-                System.Diagnostics.Debug.WriteLine($"Using textbox edge (no caret)");
-            }
+            // Position at BOTTOM-RIGHT corner of textbox (Grammarly-style)
+            double iconX = textBoxBounds.Right - Width - 8;  // 8px from right edge
+            double iconY = textBoxBounds.Bottom - Height - 8; // 8px from bottom edge
 
             // Ensure icon stays on screen
             var screenBounds = SystemParameters.WorkArea;
@@ -87,12 +65,11 @@ namespace GrammrPop.Views
             Left = iconX;
             Top = iconY;
 
-            System.Diagnostics.Debug.WriteLine($"Final icon position: ({iconX}, {iconY}), Size: {Width}x{Height}");
+            System.Diagnostics.Debug.WriteLine($"Icon positioned at bottom-right: ({iconX}, {iconY})");
 
             if (!IsVisible)
             {
                 Show();
-                System.Diagnostics.Debug.WriteLine("Icon shown!");
             }
 
             // Ensure the window is topmost
@@ -103,26 +80,20 @@ namespace GrammrPop.Views
         {
             try
             {
-                // Re-fetch text in case it changed since last detection
-                var currentText = _targetText;
-
-                if (_targetElement != null)
-                {
-                    currentText = GetFreshTextFromElement(_targetElement) ?? _targetText;
-                }
-
                 // Hide the floating icon
                 Hide();
 
-                // Open popup window with the text
+                // Open popup window with pre-loaded errors
                 var popup = new PopupWindow(_settingsService);
                 popup.Show();
                 popup.Activate();
                 popup.Focus();
 
                 // Pre-fill with the textbox content
-                popup.InputTextBox.Text = currentText;
-                popup.InputTextBox.SelectAll();
+                popup.InputTextBox.Text = _targetText;
+
+                // Auto-load the grammar results
+                popup.LoadGrammarResults(_errorMatches, _targetText);
             }
             catch (Exception ex)
             {
@@ -132,33 +103,6 @@ namespace GrammrPop.Views
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
-        }
-
-        private string? GetFreshTextFromElement(AutomationElement element)
-        {
-            try
-            {
-                // Try ValuePattern first
-                if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? valuePattern))
-                {
-                    var pattern = (ValuePattern)valuePattern;
-                    return pattern.Current.Value;
-                }
-
-                // Try TextPattern
-                if (element.TryGetCurrentPattern(TextPattern.Pattern, out object? textPattern))
-                {
-                    var pattern = (TextPattern)textPattern;
-                    var range = pattern.DocumentRange;
-                    return range.GetText(-1);
-                }
-            }
-            catch
-            {
-                // Ignore errors, return cached text
-            }
-
-            return null;
         }
     }
 }

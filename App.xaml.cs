@@ -80,11 +80,16 @@ namespace GrammrPop
                 // Create floating icon window
                 _floatingIcon = new FloatingIconWindow(_settingsService);
 
-                // Create and configure text box monitor
-                _textBoxMonitor = new TextBoxMonitorService();
-                _textBoxMonitor.TextBoxFocused += OnTextBoxFocused;
+                // Create grammar client
+                var grammarClient = new LanguageToolClient();
+
+                // Create and configure text box monitor with auto-checking
+                _textBoxMonitor = new TextBoxMonitorService(grammarClient, _settingsService);
+                _textBoxMonitor.GrammarErrorsFound += OnGrammarErrorsFound;
                 _textBoxMonitor.TextBoxLostFocus += OnTextBoxLostFocus;
                 _textBoxMonitor.Start();
+
+                System.Diagnostics.Debug.WriteLine("✓ Auto-detect started with real-time grammar checking");
             }
             catch (Exception ex)
             {
@@ -100,7 +105,7 @@ namespace GrammrPop
         {
             if (_textBoxMonitor != null)
             {
-                _textBoxMonitor.TextBoxFocused -= OnTextBoxFocused;
+                _textBoxMonitor.GrammarErrorsFound -= OnGrammarErrorsFound;
                 _textBoxMonitor.TextBoxLostFocus -= OnTextBoxLostFocus;
                 _textBoxMonitor.Stop();
                 _textBoxMonitor.Dispose();
@@ -115,15 +120,24 @@ namespace GrammrPop
             }
         }
 
-        private void OnTextBoxFocused(object? sender, TextBoxDetectedEventArgs e)
+        private void OnGrammarErrorsFound(object? sender, GrammarErrorsFoundEventArgs e)
         {
             Dispatcher.Invoke(() =>
             {
-                // Show icon even for empty textboxes (user might want to type first)
-                if (_floatingIcon != null)
+                if (_floatingIcon == null)
+                    return;
+
+                // Only show icon when errors found (Grammarly-style)
+                if (e.ErrorCount > 0)
                 {
-                    System.Diagnostics.Debug.WriteLine($"TextBox detected: {e.Bounds}, Text length: {e.Text?.Length ?? 0}");
-                    _floatingIcon.PositionNearTextBox(e.Bounds, e.Text ?? string.Empty, e.Element);
+                    System.Diagnostics.Debug.WriteLine($"📍 Showing icon with {e.ErrorCount} errors");
+                    _floatingIcon.ShowWithErrors(e.Bounds, e.ErrorCount, e.Matches, e.OriginalText, e.Element);
+                }
+                else
+                {
+                    // Hide icon when no errors
+                    System.Diagnostics.Debug.WriteLine("✓ No errors - hiding icon");
+                    _floatingIcon.Hide();
                 }
             });
         }

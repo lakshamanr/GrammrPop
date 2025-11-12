@@ -5,23 +5,32 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Threading;
+using GrammrPop.Models;
 
 namespace GrammrPop.Services
 {
     /// <summary>
-    /// Monitors focused text controls across all applications using UI Automation
+    /// Monitors focused text controls and auto-checks grammar (Grammarly-style)
     /// </summary>
     public class TextBoxMonitorService : IDisposable
     {
         private readonly DispatcherTimer _monitorTimer;
+        private readonly DispatcherTimer _textCheckTimer;
         private readonly DispatcherTimer _hideDelayTimer;
+        private readonly LanguageToolClient _grammarClient;
+        private readonly SettingsService _settingsService;
+
         private AutomationElement? _lastFocusedElement;
         private AutomationElement? _currentStableElement;
+        private string _lastCheckedText = string.Empty;
+        private string _currentText = string.Empty;
         private int _stableCount = 0;
         private readonly object _lockObject = new object();
         private bool _isMonitoring;
+        private bool _isChecking = false;
 
         public event EventHandler<TextBoxDetectedEventArgs>? TextBoxFocused;
+        public event EventHandler<GrammarErrorsFoundEventArgs>? GrammarErrorsFound;
         public event EventHandler? TextBoxLostFocus;
 
         [DllImport("user32.dll")]
@@ -30,17 +39,26 @@ namespace GrammrPop.Services
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
-        public TextBoxMonitorService()
+        public TextBoxMonitorService(LanguageToolClient grammarClient, SettingsService settingsService)
         {
+            _grammarClient = grammarClient;
+            _settingsService = settingsService;
+
             _monitorTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(500) // Reduced frequency to 500ms
+                Interval = TimeSpan.FromMilliseconds(500)
             };
             _monitorTimer.Tick += MonitorTimer_Tick;
 
+            _textCheckTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(2) // Check 2 seconds after typing stops
+            };
+            _textCheckTimer.Tick += TextCheckTimer_Tick;
+
             _hideDelayTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(500) // Wait 500ms before hiding
+                Interval = TimeSpan.FromMilliseconds(500)
             };
             _hideDelayTimer.Tick += HideDelayTimer_Tick;
         }
@@ -116,7 +134,8 @@ namespace GrammrPop.Services
                     // Check if this is the same element as before
                     if (IsSameElement(focusedElement, _currentStableElement))
                     {
-                        // Same element - no need to re-fire event
+                        // Same element - check for text changes
+                        CheckForTextChanges(focusedElement);
                         return;
                     }
 
@@ -139,12 +158,18 @@ namespace GrammrPop.Services
                             {
                                 System.Diagnostics.Debug.WriteLine($"✓ Stable textbox detected: {rect?.Width}x{rect?.Height}");
 
+                                _currentText = text;
+                                _lastCheckedText = "";  // Reset to trigger initial check
+
                                 TextBoxFocused?.Invoke(this, new TextBoxDetectedEventArgs
                                 {
                                     Element = focusedElement,
                                     Bounds = rect.Value,
                                     Text = text
                                 });
+
+                                // Start monitoring text changes
+                                CheckForTextChanges(focusedElement);
                             }
                         }
                     }
@@ -309,8 +334,106 @@ namespace GrammrPop.Services
                 _lastFocusedElement = null;
                 _currentStableElement = null;
                 _stableCount = 0;
+                _textCheckTimer.Stop();
                 TextBoxLostFocus?.Invoke(this, EventArgs.Empty);
                 System.Diagnostics.Debug.WriteLine("Icon hidden (delayed)");
+            }
+        }
+
+        private void CheckForTextChanges(AutomationElement element)
+        {
+            try
+            {
+                var newText = GetElementText(element);
+
+                if (newText != _currentText)
+                {
+                    _currentText = newText;
+                    System.Diagnostics.Debug.WriteLine($"Text changed: length={newText.Length}");
+
+                    // Restart the check timer (debouncing)
+                    _textCheckTimer.Stop();
+                    _textCheckTimer.Start();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error checking text changes: {ex.Message}");
+            }
+        }
+
+        private async void TextCheckTimer_Tick(object? sender, EventArgs e)
+        {
+            _textCheckTimer.Stop();
+
+            if (_isChecking || _currentStableElement == null)
+                return;
+
+            try
+            {
+                // Only check if text has changed since last check
+                if (_currentText == _lastCheckedText || string.IsNullOrWhiteSpace(_currentText))
+                {
+                    // No errors to show
+                    System.Diagnostics.Debug.WriteLine("No text or unchanged - hiding icon");
+                    GrammarErrorsFound?.Invoke(this, new GrammarErrorsFoundEventArgs
+                    {
+                        Element = _currentStableElement,
+                        Bounds = GetElementBounds(_currentStableElement) ?? default,
+                        ErrorCount = 0,
+                        Matches = Array.Empty<Match>()
+                    });
+                    return;
+                }
+
+                _isChecking = true;
+                _lastCheckedText = _currentText;
+
+                System.Diagnostics.Debug.WriteLine($"🔍 Auto-checking grammar for text: {_currentText.Substring(0, Math.Min(50, _currentText.Length))}...");
+
+                var settings = _settingsService.CurrentSettings;
+                var endpoint = settings.UseLocalServer ? settings.LocalServerUrl : settings.ApiEndpoint;
+
+                var result = await _grammarClient.CheckAsync(_currentText, settings.Language, endpoint, settings.ApiKey);
+
+                // Get bounds again in case window moved
+                var rect = GetElementBounds(_currentStableElement);
+                if (!rect.HasValue)
+                    return;
+
+                if (result.Matches != null && result.Matches.Length > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"✓ Found {result.Matches.Length} grammar errors");
+
+                    GrammarErrorsFound?.Invoke(this, new GrammarErrorsFoundEventArgs
+                    {
+                        Element = _currentStableElement,
+                        Bounds = rect.Value,
+                        ErrorCount = result.Matches.Length,
+                        Matches = result.Matches,
+                        OriginalText = _currentText
+                    });
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("✓ No errors found - hiding icon");
+
+                    GrammarErrorsFound?.Invoke(this, new GrammarErrorsFoundEventArgs
+                    {
+                        Element = _currentStableElement,
+                        Bounds = rect.Value,
+                        ErrorCount = 0,
+                        Matches = Array.Empty<Match>()
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error checking grammar: {ex.Message}");
+            }
+            finally
+            {
+                _isChecking = false;
             }
         }
 
@@ -327,8 +450,10 @@ namespace GrammrPop.Services
         public void Dispose()
         {
             Stop();
+            _textCheckTimer.Stop();
             _hideDelayTimer.Stop();
             _monitorTimer.Tick -= MonitorTimer_Tick;
+            _textCheckTimer.Tick -= TextCheckTimer_Tick;
             _hideDelayTimer.Tick -= HideDelayTimer_Tick;
         }
     }
@@ -338,5 +463,14 @@ namespace GrammrPop.Services
         public AutomationElement Element { get; set; } = null!;
         public Rect Bounds { get; set; }
         public string Text { get; set; } = string.Empty;
+    }
+
+    public class GrammarErrorsFoundEventArgs : EventArgs
+    {
+        public AutomationElement Element { get; set; } = null!;
+        public Rect Bounds { get; set; }
+        public int ErrorCount { get; set; }
+        public Match[] Matches { get; set; } = Array.Empty<Match>();
+        public string OriginalText { get; set; } = string.Empty;
     }
 }
