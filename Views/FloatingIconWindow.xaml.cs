@@ -58,10 +58,17 @@ namespace GrammrPop.Views
             Left = iconX;
             Top = iconY;
 
+            System.Diagnostics.Debug.WriteLine($"Positioning icon at: ({iconX}, {iconY}), Size: {Width}x{Height}");
+
             if (!IsVisible)
             {
                 Show();
+                System.Diagnostics.Debug.WriteLine("Icon shown!");
             }
+
+            // Ensure the window is topmost
+            Topmost = true;
+            Activate();
         }
 
         private void IconButton_Click(object sender, RoutedEventArgs e)

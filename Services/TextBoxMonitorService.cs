@@ -78,13 +78,21 @@ namespace GrammrPop.Services
                 }
 
                 // Check if it's a text control
-                if (IsTextControl(focusedElement))
+                var isTextControl = IsTextControl(focusedElement);
+                var controlType = focusedElement.Current.ControlType.ProgrammaticName;
+                var className = focusedElement.Current.ClassName;
+
+                System.Diagnostics.Debug.WriteLine($"Focused: {controlType}, Class: {className}, IsText: {isTextControl}");
+
+                if (isTextControl)
                 {
                     // Get control information
                     var rect = GetElementBounds(focusedElement);
                     var text = GetElementText(focusedElement);
 
-                    if (rect.HasValue)
+                    System.Diagnostics.Debug.WriteLine($"  -> Bounds: {rect?.Width}x{rect?.Height}, TextLen: {text?.Length ?? 0}");
+
+                    if (rect.HasValue && rect.Value.Width > 20 && rect.Value.Height > 10)
                     {
                         TextBoxFocused?.Invoke(this, new TextBoxDetectedEventArgs
                         {
@@ -127,10 +135,30 @@ namespace GrammrPop.Services
             {
                 var controlType = element.Current.ControlType;
 
-                // Check for text-input control types
-                return controlType == ControlType.Edit ||
-                       controlType == ControlType.Document ||
-                       controlType == ControlType.Text;
+                // Check for common text-input control types
+                if (controlType == ControlType.Edit ||
+                    controlType == ControlType.Document ||
+                    controlType == ControlType.Text)
+                {
+                    return true;
+                }
+
+                // Also check if element supports text patterns (catches more controls)
+                if (element.TryGetCurrentPattern(ValuePattern.Pattern, out _) ||
+                    element.TryGetCurrentPattern(TextPattern.Pattern, out _))
+                {
+                    // Make sure it's not a button or non-editable element
+                    var isEnabled = element.Current.IsEnabled;
+                    var isPassword = element.Current.IsPassword;
+
+                    // Skip password fields for security
+                    if (isPassword)
+                        return false;
+
+                    return isEnabled;
+                }
+
+                return false;
             }
             catch
             {

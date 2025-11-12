@@ -119,9 +119,11 @@ namespace GrammrPop
         {
             Dispatcher.Invoke(() =>
             {
-                if (_floatingIcon != null && !string.IsNullOrWhiteSpace(e.Text))
+                // Show icon even for empty textboxes (user might want to type first)
+                if (_floatingIcon != null)
                 {
-                    _floatingIcon.PositionNearTextBox(e.Bounds, e.Text, e.Element);
+                    System.Diagnostics.Debug.WriteLine($"TextBox detected: {e.Bounds}, Text length: {e.Text?.Length ?? 0}");
+                    _floatingIcon.PositionNearTextBox(e.Bounds, e.Text ?? string.Empty, e.Element);
                 }
             });
         }
