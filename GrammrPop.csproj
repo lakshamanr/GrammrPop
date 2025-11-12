@@ -17,6 +17,7 @@
   <ItemGroup>
     <PackageReference Include="NHotkey.Wpf" Version="3.0.0" />
     <PackageReference Include="InputSimulator" Version="1.0.4" />
+    <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="1.1.0" />
   </ItemGroup>
 
   <ItemGroup>

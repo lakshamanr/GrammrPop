@@ -1,10 +1,12 @@
 using System;
+using System.Drawing;
 using System.Windows;
 using System.Windows.Input;
 using NHotkey;
 using NHotkey.Wpf;
 using GrammrPop.Services;
 using GrammrPop.Views;
+using Hardcodet.Wpf.TaskbarNotification;
 
 namespace GrammrPop
 {
@@ -13,12 +15,16 @@ namespace GrammrPop
         private SettingsService _settingsService = null!;
         private TextBoxMonitorService? _textBoxMonitor;
         private FloatingIconWindow? _floatingIcon;
+        private TaskbarIcon? _trayIcon;
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
             // Initialize settings service
             _settingsService = new SettingsService();
             _settingsService.Load();
+
+            // Create system tray icon
+            CreateTrayIcon();
 
             // Register global hotkey (default Ctrl+Alt+G)
             try
@@ -169,10 +175,83 @@ namespace GrammrPop
             }
         }
 
+        private void CreateTrayIcon()
+        {
+            _trayIcon = new TaskbarIcon
+            {
+                Icon = SystemIcons.Application,
+                ToolTipText = "GrammrPop - Grammar Assistant\nHotkey: Ctrl+Alt+G"
+            };
+
+            // Create context menu
+            var contextMenu = new System.Windows.Controls.ContextMenu();
+
+            // Open GrammrPop menu item
+            var openItem = new System.Windows.Controls.MenuItem { Header = "Open GrammrPop (Ctrl+Alt+G)" };
+            openItem.Click += (s, e) =>
+            {
+                var popup = new PopupWindow(_settingsService);
+                popup.Show();
+                popup.Activate();
+            };
+            contextMenu.Items.Add(openItem);
+
+            contextMenu.Items.Add(new System.Windows.Controls.Separator());
+
+            // Auto-detect toggle menu item
+            var autoDetectItem = new System.Windows.Controls.MenuItem
+            {
+                Header = "Auto-Detect Mode",
+                IsCheckable = true,
+                IsChecked = _settingsService.CurrentSettings.EnableAutoDetect
+            };
+            autoDetectItem.Click += (s, e) =>
+            {
+                _settingsService.CurrentSettings.EnableAutoDetect = autoDetectItem.IsChecked;
+                _settingsService.Save();
+                RefreshAutoDetect();
+            };
+            contextMenu.Items.Add(autoDetectItem);
+
+            contextMenu.Items.Add(new System.Windows.Controls.Separator());
+
+            // Settings menu item
+            var settingsItem = new System.Windows.Controls.MenuItem { Header = "Settings" };
+            settingsItem.Click += (s, e) =>
+            {
+                var settingsWindow = new SettingsWindow(_settingsService);
+                settingsWindow.Show();
+            };
+            contextMenu.Items.Add(settingsItem);
+
+            contextMenu.Items.Add(new System.Windows.Controls.Separator());
+
+            // Exit menu item
+            var exitItem = new System.Windows.Controls.MenuItem { Header = "Exit" };
+            exitItem.Click += (s, e) =>
+            {
+                Shutdown();
+            };
+            contextMenu.Items.Add(exitItem);
+
+            _trayIcon.ContextMenu = contextMenu;
+
+            // Double-click to open popup
+            _trayIcon.TrayMouseDoubleClick += (s, e) =>
+            {
+                var popup = new PopupWindow(_settingsService);
+                popup.Show();
+                popup.Activate();
+            };
+        }
+
         private void Application_Exit(object sender, ExitEventArgs e)
         {
             // Cleanup auto-detect
             StopAutoDetect();
+
+            // Cleanup tray icon
+            _trayIcon?.Dispose();
 
             // Cleanup hotkey
             try
