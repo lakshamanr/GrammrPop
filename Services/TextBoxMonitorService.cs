@@ -100,36 +100,30 @@ namespace GrammrPop.Services
                 var isTextControl = IsTextControl(focusedElement);
 
                 // Debug logging for troubleshooting
-                try
+                if (isTextControl)
                 {
-                    var controlType = focusedElement.Current.ControlType.ProgrammaticName;
-                    var className = focusedElement.Current.ClassName;
-                    var name = focusedElement.Current.Name;
-                    var processName = "";
-
                     try
                     {
-                        var hwnd = new IntPtr(focusedElement.Current.NativeWindowHandle);
-                        GetWindowThreadProcessId(hwnd, out uint processId);
-                        var process = System.Diagnostics.Process.GetProcessById((int)processId);
-                        processName = process.ProcessName;
-                    }
-                    catch { /* Ignore process name errors */ }
+                        var controlType = focusedElement.Current.ControlType.ProgrammaticName;
+                        var className = focusedElement.Current.ClassName;
+                        var processName = "";
 
-                    if (!isTextControl)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"❌ Rejected: Type={controlType}, Class={className}, Process={processName}");
-                    }
-                    else
-                    {
+                        try
+                        {
+                            var hwnd = new IntPtr(focusedElement.Current.NativeWindowHandle);
+                            GetWindowThreadProcessId(hwnd, out uint processId);
+                            var process = System.Diagnostics.Process.GetProcessById((int)processId);
+                            processName = process.ProcessName;
+                        }
+                        catch { /* Ignore process name errors */ }
+
                         Console.WriteLine($"\n✓✓✓ TEXTBOX DETECTED!");
                         Console.WriteLine($"    Type: {controlType}");
                         Console.WriteLine($"    Class: {className}");
                         Console.WriteLine($"    Process: {processName}");
-                        System.Diagnostics.Debug.WriteLine($"✓✓✓ ACCEPTED: Type={controlType}, Class={className}, Process={processName}");
                     }
+                    catch { /* Ignore debug logging errors */ }
                 }
-                catch { /* Ignore debug logging errors */ }
 
                 if (!isTextControl)
                 {
@@ -228,68 +222,116 @@ namespace GrammrPop.Services
             {
                 var controlType = element.Current.ControlType;
                 var className = element.Current.ClassName;
+                var isEnabled = element.Current.IsEnabled;
+                var isKeyboardFocusable = element.Current.IsKeyboardFocusable;
 
-                // Check for common text-input control types
-                if (controlType == ControlType.Edit ||
-                    controlType == ControlType.Document ||
-                    controlType == ControlType.Text)
+                // Must be enabled and keyboard focusable
+                if (!isEnabled || !isKeyboardFocusable)
+                    return false;
+
+                // Skip password fields for security
+                if (element.Current.IsPassword)
+                    return false;
+
+                // EXPLICITLY REJECT non-input controls
+                if (controlType == ControlType.Button ||
+                    controlType == ControlType.MenuItem ||
+                    controlType == ControlType.ToolBar ||
+                    controlType == ControlType.HeaderItem ||
+                    controlType == ControlType.TreeItem ||
+                    controlType == ControlType.ListItem ||
+                    controlType == ControlType.TabItem ||
+                    controlType == ControlType.MenuBar ||
+                    controlType == ControlType.StatusBar ||
+                    controlType == ControlType.TitleBar ||
+                    controlType == ControlType.ToolTip ||
+                    controlType == ControlType.Image ||
+                    controlType == ControlType.Table ||
+                    controlType == ControlType.DataGrid ||
+                    controlType == ControlType.DataItem ||
+                    controlType == ControlType.Header ||
+                    controlType == ControlType.Group ||
+                    controlType == ControlType.Thumb ||
+                    controlType == ControlType.ScrollBar ||
+                    controlType == ControlType.Separator ||
+                    controlType == ControlType.ProgressBar ||
+                    controlType == ControlType.Slider ||
+                    controlType == ControlType.Spinner)
                 {
+                    return false;
+                }
+
+                // ACCEPT standard Edit controls (Notepad, standard textboxes)
+                if (controlType == ControlType.Edit)
+                {
+                    Console.WriteLine($"    ✓ Standard Edit control");
                     return true;
                 }
 
-                // Check for known editor control class names (Notepad++, VS Code, etc.)
+                // Check for known editor control class names
                 if (!string.IsNullOrEmpty(className))
                 {
                     var lowerClassName = className.ToLower();
 
                     // Notepad++ uses Scintilla
-                    // Visual Studio Code uses Chrome_RenderWidgetHostHWND
-                    // Sublime Text uses Scintilla
-                    // Many code editors use Scintilla
-                    if (lowerClassName.Contains("scintilla") ||
-                        lowerClassName.Contains("editor") ||
-                        lowerClassName.Contains("chrome_renderwidgethosthwnd") ||
-                        lowerClassName.Contains("textbox") ||
-                        lowerClassName.Contains("richedit"))
+                    if (lowerClassName.Contains("scintilla"))
                     {
-                        System.Diagnostics.Debug.WriteLine($"  -> Detected by className: {className}");
+                        Console.WriteLine($"    ✓ Scintilla editor (Notepad++, Sublime)");
+                        return true;
+                    }
+
+                    // Visual Studio Code, Browsers (Chrome, Edge) use this
+                    if (lowerClassName.Contains("chrome_renderwidgethosthwnd"))
+                    {
+                        Console.WriteLine($"    ✓ Chrome-based editor (VS Code, Browser)");
+                        return true;
+                    }
+
+                    // RichEdit controls (WordPad, etc.)
+                    if (lowerClassName.Contains("richedit"))
+                    {
+                        Console.WriteLine($"    ✓ RichEdit control");
+                        return true;
+                    }
+
+                    // Explicit textbox class names
+                    if (lowerClassName == "textbox" || lowerClassName == "edit")
+                    {
+                        Console.WriteLine($"    ✓ TextBox/Edit class");
                         return true;
                     }
                 }
 
-                // Pane controls might be custom editors
+                // ONLY accept Document if it has ValuePattern AND is editable
+                // This catches some web textareas but filters out read-only documents
+                if (controlType == ControlType.Document)
+                {
+                    if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? valuePattern))
+                    {
+                        var pattern = (ValuePattern)valuePattern;
+                        if (!pattern.Current.IsReadOnly)
+                        {
+                            Console.WriteLine($"    ✓ Editable Document with ValuePattern");
+                            return true;
+                        }
+                    }
+                    return false; // Read-only document or no ValuePattern
+                }
+
+                // For Pane controls, be very strict
                 if (controlType == ControlType.Pane)
                 {
-                    // Check if it has text patterns (likely an editor)
-                    if (element.TryGetCurrentPattern(TextPattern.Pattern, out _) ||
-                        element.TryGetCurrentPattern(ValuePattern.Pattern, out _))
+                    // Must have ValuePattern AND be editable
+                    if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? valuePattern))
                     {
-                        System.Diagnostics.Debug.WriteLine($"  -> Pane with text pattern: {className}");
-                        return true;
+                        var pattern = (ValuePattern)valuePattern;
+                        if (!pattern.Current.IsReadOnly)
+                        {
+                            Console.WriteLine($"    ✓ Editable Pane with ValuePattern");
+                            return true;
+                        }
                     }
-                }
-
-                // Also check if element supports text patterns (catches more controls)
-                if (element.TryGetCurrentPattern(ValuePattern.Pattern, out _) ||
-                    element.TryGetCurrentPattern(TextPattern.Pattern, out _))
-                {
-                    // Make sure it's not a button or non-editable element
-                    var isEnabled = element.Current.IsEnabled;
-                    var isPassword = element.Current.IsPassword;
-
-                    // Skip password fields for security
-                    if (isPassword)
-                        return false;
-
-                    // Skip buttons and other non-text controls
-                    if (controlType == ControlType.Button ||
-                        controlType == ControlType.MenuItem ||
-                        controlType == ControlType.ToolBar)
-                    {
-                        return false;
-                    }
-
-                    return isEnabled;
+                    return false;
                 }
 
                 return false;
