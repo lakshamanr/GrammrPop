@@ -337,7 +337,6 @@ namespace GrammrPop.Services
                 var automationId = "";
                 var name = "";
                 var helpText = "";
-                var ariaRole = "";
 
                 try
                 {
@@ -345,19 +344,14 @@ namespace GrammrPop.Services
                     name = element.Current.Name ?? "";
                     helpText = element.Current.HelpText ?? "";
 
-                    // Try to get ARIA role (important for web apps)
-                    if (element.TryGetCurrentPattern(LegacyIAccessiblePattern.Pattern, out object? accessiblePattern))
-                    {
-                        var pattern = (LegacyIAccessiblePattern)accessiblePattern;
-                        ariaRole = pattern.Current.Role ?? "";
-                    }
+                    // Note: ARIA role detection removed to avoid compilation issues
+                    // LegacyIAccessiblePattern may not be available in all .NET versions
                 }
                 catch { /* Ignore property access errors */ }
 
                 Console.WriteLine($"       AutomationId: '{automationId}'");
                 Console.WriteLine($"       Name: '{name}'");
                 Console.WriteLine($"       HelpText: '{helpText}'");
-                Console.WriteLine($"       AriaRole: '{ariaRole}'");
                 if (rect.HasValue)
                 {
                     Console.WriteLine($"       Size: {rect.Value.Width:F0}x{rect.Value.Height:F0}px");
