@@ -80,6 +80,24 @@ namespace GrammrPop.Services
                 // Check if it's a text control
                 var isTextControl = IsTextControl(focusedElement);
 
+                // Debug logging for troubleshooting
+                try
+                {
+                    var controlType = focusedElement.Current.ControlType.ProgrammaticName;
+                    var className = focusedElement.Current.ClassName;
+                    var name = focusedElement.Current.Name;
+
+                    if (!isTextControl)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"❌ Rejected: Type={controlType}, Class={className}, Name={name}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"✓ Accepted: Type={controlType}, Class={className}, Name={name}");
+                    }
+                }
+                catch { /* Ignore debug logging errors */ }
+
                 if (!isTextControl)
                 {
                     // Not a text control - start hide timer
@@ -165,6 +183,7 @@ namespace GrammrPop.Services
             try
             {
                 var controlType = element.Current.ControlType;
+                var className = element.Current.ClassName;
 
                 // Check for common text-input control types
                 if (controlType == ControlType.Edit ||
@@ -172,6 +191,38 @@ namespace GrammrPop.Services
                     controlType == ControlType.Text)
                 {
                     return true;
+                }
+
+                // Check for known editor control class names (Notepad++, VS Code, etc.)
+                if (!string.IsNullOrEmpty(className))
+                {
+                    var lowerClassName = className.ToLower();
+
+                    // Notepad++ uses Scintilla
+                    // Visual Studio Code uses Chrome_RenderWidgetHostHWND
+                    // Sublime Text uses Scintilla
+                    // Many code editors use Scintilla
+                    if (lowerClassName.Contains("scintilla") ||
+                        lowerClassName.Contains("editor") ||
+                        lowerClassName.Contains("chrome_renderwidgethosthwnd") ||
+                        lowerClassName.Contains("textbox") ||
+                        lowerClassName.Contains("richedit"))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"  -> Detected by className: {className}");
+                        return true;
+                    }
+                }
+
+                // Pane controls might be custom editors
+                if (controlType == ControlType.Pane)
+                {
+                    // Check if it has text patterns (likely an editor)
+                    if (element.TryGetCurrentPattern(TextPattern.Pattern, out _) ||
+                        element.TryGetCurrentPattern(ValuePattern.Pattern, out _))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"  -> Pane with text pattern: {className}");
+                        return true;
+                    }
                 }
 
                 // Also check if element supports text patterns (catches more controls)
@@ -185,6 +236,14 @@ namespace GrammrPop.Services
                     // Skip password fields for security
                     if (isPassword)
                         return false;
+
+                    // Skip buttons and other non-text controls
+                    if (controlType == ControlType.Button ||
+                        controlType == ControlType.MenuItem ||
+                        controlType == ControlType.ToolBar)
+                    {
+                        return false;
+                    }
 
                     return isEnabled;
                 }
