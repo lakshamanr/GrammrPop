@@ -70,6 +70,7 @@ namespace GrammrPop.Services
 
             _isMonitoring = true;
             _monitorTimer.Start();
+            Console.WriteLine("🔍 TextBoxMonitor: Started monitoring for focused textboxes");
         }
 
         public void Stop()
@@ -121,6 +122,10 @@ namespace GrammrPop.Services
                     }
                     else
                     {
+                        Console.WriteLine($"\n✓✓✓ TEXTBOX DETECTED!");
+                        Console.WriteLine($"    Type: {controlType}");
+                        Console.WriteLine($"    Class: {className}");
+                        Console.WriteLine($"    Process: {processName}");
                         System.Diagnostics.Debug.WriteLine($"✓✓✓ ACCEPTED: Type={controlType}, Class={className}, Process={processName}");
                     }
                 }
@@ -166,6 +171,10 @@ namespace GrammrPop.Services
 
                             if (rect.HasValue && rect.Value.Width > 20 && rect.Value.Height > 10)
                             {
+                                Console.WriteLine($"✓ Textbox is STABLE (confirmed after 1 second)");
+                                Console.WriteLine($"  Size: {rect?.Width:F0}x{rect?.Height:F0} pixels");
+                                Console.WriteLine($"  Current text length: {text.Length} chars");
+                                Console.WriteLine($"  Starting text monitoring...");
                                 System.Diagnostics.Debug.WriteLine($"✓ Stable textbox detected: {rect?.Width}x{rect?.Height}");
 
                                 _currentText = text;
@@ -359,6 +368,10 @@ namespace GrammrPop.Services
                 if (newText != _currentText)
                 {
                     _currentText = newText;
+                    Console.WriteLine($"\n📝 TEXT CHANGED!");
+                    Console.WriteLine($"   New length: {newText.Length} chars");
+                    Console.WriteLine($"   Preview: \"{newText.Substring(0, Math.Min(50, newText.Length))}{(newText.Length > 50 ? "..." : "")}\"");
+                    Console.WriteLine($"   ⏱️  Starting 2-second countdown before grammar check...");
                     System.Diagnostics.Debug.WriteLine($"Text changed: length={newText.Length}");
 
                     // Restart the check timer (debouncing)
@@ -368,6 +381,7 @@ namespace GrammrPop.Services
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"❌ Error checking text changes: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"Error checking text changes: {ex.Message}");
             }
         }
@@ -377,7 +391,10 @@ namespace GrammrPop.Services
             _textCheckTimer.Stop();
 
             if (_isChecking || _currentStableElement == null)
+            {
+                Console.WriteLine("⏭️  Skipping check (already checking or no element)");
                 return;
+            }
 
             try
             {
@@ -385,6 +402,7 @@ namespace GrammrPop.Services
                 if (_currentText == _lastCheckedText || string.IsNullOrWhiteSpace(_currentText))
                 {
                     // No errors to show
+                    Console.WriteLine("⏭️  Skipping check (text unchanged or empty)");
                     System.Diagnostics.Debug.WriteLine("No text or unchanged - hiding icon");
                     GrammarErrorsFound?.Invoke(this, new GrammarErrorsFoundEventArgs
                     {
@@ -399,20 +417,42 @@ namespace GrammrPop.Services
                 _isChecking = true;
                 _lastCheckedText = _currentText;
 
+                Console.WriteLine($"\n🔍 GRAMMAR CHECK STARTED");
+                Console.WriteLine($"   Text: \"{_currentText.Substring(0, Math.Min(50, _currentText.Length))}{(_currentText.Length > 50 ? "..." : "")}\"");
                 System.Diagnostics.Debug.WriteLine($"🔍 Auto-checking grammar for text: {_currentText.Substring(0, Math.Min(50, _currentText.Length))}...");
 
                 var settings = _settingsService.CurrentSettings;
                 var endpoint = settings.UseLocalServer ? settings.LocalServerUrl : settings.ApiEndpoint;
 
+                Console.WriteLine($"   API Endpoint: {endpoint}");
+                Console.WriteLine($"   Language: {settings.Language}");
+                Console.WriteLine($"   Sending request to LanguageTool...");
+
                 var result = await _grammarClient.CheckAsync(_currentText, settings.Language, endpoint, settings.ApiKey);
+
+                Console.WriteLine($"   ✓ Response received!");
 
                 // Get bounds again in case window moved
                 var rect = GetElementBounds(_currentStableElement);
                 if (!rect.HasValue)
+                {
+                    Console.WriteLine("   ⚠️  Warning: Could not get textbox bounds");
                     return;
+                }
 
                 if (result.Matches != null && result.Matches.Length > 0)
                 {
+                    Console.WriteLine($"   ✅ FOUND {result.Matches.Length} GRAMMAR ERROR(S)!");
+                    for (int i = 0; i < Math.Min(3, result.Matches.Length); i++)
+                    {
+                        var match = result.Matches[i];
+                        Console.WriteLine($"      #{i+1}: {match.Message}");
+                    }
+                    if (result.Matches.Length > 3)
+                    {
+                        Console.WriteLine($"      ... and {result.Matches.Length - 3} more");
+                    }
+                    Console.WriteLine($"   → Firing GrammarErrorsFound event to show icon\n");
                     System.Diagnostics.Debug.WriteLine($"✓ Found {result.Matches.Length} grammar errors");
 
                     GrammarErrorsFound?.Invoke(this, new GrammarErrorsFoundEventArgs
@@ -426,6 +466,7 @@ namespace GrammrPop.Services
                 }
                 else
                 {
+                    Console.WriteLine($"   ✓ No errors found (text is correct)");
                     System.Diagnostics.Debug.WriteLine("✓ No errors found - hiding icon");
 
                     GrammarErrorsFound?.Invoke(this, new GrammarErrorsFoundEventArgs
@@ -439,6 +480,13 @@ namespace GrammrPop.Services
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"\n❌ GRAMMAR CHECK FAILED!");
+                Console.WriteLine($"   Error: {ex.Message}");
+                Console.WriteLine($"   Type: {ex.GetType().Name}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"   Inner: {ex.InnerException.Message}");
+                }
                 System.Diagnostics.Debug.WriteLine($"❌ Error checking grammar: {ex.Message}\n{ex.StackTrace}");
 
                 // Show error to user

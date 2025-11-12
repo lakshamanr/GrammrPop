@@ -89,11 +89,17 @@ namespace GrammrPop
         {
             try
             {
+                Console.WriteLine("===========================================");
+                Console.WriteLine("🚀 STARTING AUTO-DETECT MODE");
+                Console.WriteLine("===========================================");
+
                 // Create floating icon window
                 _floatingIcon = new FloatingIconWindow(_settingsService);
+                Console.WriteLine("✓ Floating icon window created");
 
                 // Create grammar client
                 var grammarClient = new LanguageToolClient();
+                Console.WriteLine("✓ Grammar client created");
 
                 // Create and configure text box monitor with auto-checking
                 _textBoxMonitor = new TextBoxMonitorService(grammarClient, _settingsService);
@@ -101,10 +107,15 @@ namespace GrammrPop
                 _textBoxMonitor.TextBoxLostFocus += OnTextBoxLostFocus;
                 _textBoxMonitor.Start();
 
+                Console.WriteLine("✓ Text box monitor started - polling every 500ms");
+                Console.WriteLine("✓ Auto-detect is now ACTIVE");
+                Console.WriteLine("→ Focus any textbox and type to test...\n");
+
                 System.Diagnostics.Debug.WriteLine("✓ Auto-detect started with real-time grammar checking");
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"❌ FAILED TO START AUTO-DETECT: {ex.Message}");
                 MessageBox.Show(
                     $"Failed to start auto-detect feature: {ex.Message}\n\nYou can disable it in settings.",
                     "GrammrPop - Auto-Detect Error",
@@ -144,18 +155,22 @@ namespace GrammrPop
                     // Only show icon when errors found (Grammarly-style)
                     if (e.ErrorCount > 0)
                     {
+                        Console.WriteLine($"📍 SHOWING ICON: {e.ErrorCount} errors found at position ({e.Bounds.X:F0}, {e.Bounds.Y:F0})");
+                        Console.WriteLine($"   Text sample: \"{e.OriginalText.Substring(0, Math.Min(50, e.OriginalText.Length))}...\"");
                         System.Diagnostics.Debug.WriteLine($"📍 Showing icon with {e.ErrorCount} errors at ({e.Bounds.X}, {e.Bounds.Y})");
                         _floatingIcon.ShowWithErrors(e.Bounds, e.ErrorCount, e.Matches, e.OriginalText, e.Element);
                     }
                     else
                     {
                         // Hide icon when no errors
+                        Console.WriteLine("✓ No errors found - hiding icon");
                         System.Diagnostics.Debug.WriteLine("✓ No errors - hiding icon");
                         _floatingIcon.Hide();
                     }
                 }
                 catch (Exception ex)
                 {
+                    Console.WriteLine($"❌ ERROR showing icon: {ex.Message}");
                     System.Diagnostics.Debug.WriteLine($"❌ Error in OnGrammarErrorsFound: {ex.Message}");
                     MessageBox.Show(
                         $"Error showing grammar icon: {ex.Message}",
