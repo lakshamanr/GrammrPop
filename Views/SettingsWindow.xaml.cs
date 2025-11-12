@@ -50,6 +50,9 @@ namespace GrammrPop.Views
             // Auto-Paste
             AutoPasteCheckBox.IsChecked = settings.AutoPaste;
 
+            // Auto-Detect
+            EnableAutoDetectCheckBox.IsChecked = settings.EnableAutoDetect;
+
             // History
             HistorySizeTextBox.Text = settings.HistorySize.ToString();
 
@@ -107,6 +110,9 @@ namespace GrammrPop.Views
 
                 settings.AutoPaste = AutoPasteCheckBox.IsChecked == true;
 
+                // Auto-Detect
+                settings.EnableAutoDetect = EnableAutoDetectCheckBox.IsChecked == true;
+
                 // Parse history size
                 if (int.TryParse(HistorySizeTextBox.Text, out var historySize) && historySize >= 0)
                 {
@@ -124,6 +130,10 @@ namespace GrammrPop.Views
 
                 // Save to disk
                 _settingsService.Save();
+
+                // Refresh auto-detect feature if it was toggled
+                var app = Application.Current as App;
+                app?.RefreshAutoDetect();
 
                 MessageBox.Show(
                     "Settings saved successfully!\n\nNote: Hotkey changes require restart.",

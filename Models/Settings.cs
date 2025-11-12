@@ -10,5 +10,6 @@ namespace GrammrPop.Models
         public bool UseLocalServer { get; set; } = false;
         public string LocalServerUrl { get; set; } = "http://localhost:8081/v2/check";
         public string? ApiKey { get; set; } = null; // Optional, encrypted when saved
+        public bool EnableAutoDetect { get; set; } = false; // Show icon on textboxes automatically
     }
 }

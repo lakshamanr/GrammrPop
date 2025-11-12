@@ -123,6 +123,24 @@
                           Margin="0,0,0,16"
                           TextWrapping="Wrap"/>
 
+                <!-- Auto-Detect Section -->
+                <TextBlock Text="Smart Detection (Grammarly-like)"
+                          Style="{StaticResource SectionHeaderStyle}"/>
+
+                <CheckBox x:Name="EnableAutoDetectCheckBox"
+                         Content="Show floating icon on textboxes automatically"
+                         Margin="0,4,0,4"/>
+
+                <TextBlock TextWrapping="Wrap"
+                          Foreground="#666666"
+                          FontSize="11"
+                          Margin="0,0,0,16">
+                    <Run Text="When enabled, a small icon will appear near text fields. Click it to check grammar."/>
+                    <LineBreak/>
+                    <Run Text="⚠️ This feature uses UI Automation and may increase CPU usage slightly."
+                         Foreground="#FF6F00"/>
+                </TextBlock>
+
                 <!-- History Section -->
                 <TextBlock Text="History"
                           Style="{StaticResource SectionHeaderStyle}"/>

@@ -19,4 +19,9 @@
     <PackageReference Include="InputSimulator" Version="1.0.4" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="UIAutomationClient" />
+    <Reference Include="UIAutomationTypes" />
+  </ItemGroup>
+
 </Project>
