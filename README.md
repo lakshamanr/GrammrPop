@@ -5,7 +5,8 @@
 ## Features
 
 - **🎯 Smart Auto-Detection** (NEW!): Grammarly-like floating icon appears automatically on textboxes - just click to check grammar!
-- **⌨️ Global Hotkey**: Press `Ctrl+Alt+G` from any application to open the grammar checker
+- **⚡ Single Instance**: Only one instance runs at a time - prevents conflicts and duplicate hotkeys
+- **⌨️ Global Hotkey**: Press `Ctrl+Alt+G` (customizable) from any application to open the grammar checker
 - **⚡ Instant Checking**: Paste or type text and get immediate grammar suggestions
 - **🎨 Smart Corrections**: View and selectively apply suggestions with context
 - **📋 Auto-Paste**: Optionally paste corrected text back to your original application
@@ -74,6 +75,13 @@ GrammrPop offers two ways to check your text:
 ## Settings
 
 Access settings from the popup window:
+
+### Global Hotkey
+- Configure your preferred hotkey combination (default: `Ctrl+Alt+G`)
+- Supports modifiers: Ctrl, Alt, Shift, Win + any letter or number key
+- Examples: `Ctrl+Alt+G`, `Ctrl+Shift+H`, `Win+G`
+- Changes apply immediately without restart
+- If a hotkey is already in use, you'll see an error message
 
 ### Language
 - Choose from English (US/GB), German, French, Spanish, Portuguese, Italian, Dutch
@@ -157,9 +165,9 @@ dotnet test
 
 ## Roadmap
 
-- [ ] Customizable hotkey in UI
+- [x] Customizable hotkey in UI
 - [ ] History window to view past checks
-- [ ] System tray icon with context menu
+- [ ] System tray icon with context menu (✓ implemented)
 - [ ] Spelling dictionary customization
 - [ ] Text highlighting in popup with inline corrections
 - [ ] Support for more languages

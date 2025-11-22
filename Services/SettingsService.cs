@@ -31,7 +31,7 @@ namespace GrammrPop.Services
                     return;
                 }
 
-                var json = File.ReadAllText(SettingsFilePath);
+               var json = File.ReadAllText(SettingsFilePath);
                 var settings = JsonSerializer.Deserialize<Settings>(json);
 
                 if (settings != null)
@@ -78,7 +78,8 @@ namespace GrammrPop.Services
                     HistorySize = CurrentSettings.HistorySize,
                     UseLocalServer = CurrentSettings.UseLocalServer,
                     LocalServerUrl = CurrentSettings.LocalServerUrl,
-                    ApiKey = CurrentSettings.ApiKey
+                    ApiKey = CurrentSettings.ApiKey,
+                    EnableAutoDetect = CurrentSettings.EnableAutoDetect
                 };
 
                 // Encrypt API key if present

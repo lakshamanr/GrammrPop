@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="GrammrPop - Settings"
         Width="600"
-        Height="550"
+        Height="580"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="#F5F5F5">
@@ -41,14 +41,20 @@
                 <!-- Hotkey Section -->
                 <TextBlock Text="Global Hotkey"
                           Style="{StaticResource SectionHeaderStyle}"/>
-                <TextBlock Text="Current hotkey: Ctrl+Alt+G (configurable in future version)"
+                <TextBlock Text="Enter hotkey in format: Ctrl+Alt+G, Ctrl+Shift+H, etc."
                           Foreground="#666666"
                           Margin="0,0,0,4"/>
                 <TextBox x:Name="HotkeyTextBox"
                         Style="{StaticResource InputStyle}"
-                        IsReadOnly="True"
-                        Background="#E0E0E0"
-                        Margin="0,0,0,8"/>
+                        Margin="0,0,0,4"/>
+                <TextBlock TextWrapping="Wrap"
+                          Foreground="#FF6F00"
+                          FontSize="11"
+                          Margin="0,0,0,16">
+                    <Run Text="?? If the hotkey is already in use, you'll see an error on startup."/>
+                    <LineBreak/>
+                    <Run Text="Supported modifiers: Ctrl, Alt, Shift, Win + any letter/number key"/>
+                </TextBlock>
 
                 <!-- Language Section -->
                 <TextBlock Text="Language"
@@ -137,7 +143,7 @@
                           Margin="0,0,0,16">
                     <Run Text="When enabled, a small icon will appear near text fields. Click it to check grammar."/>
                     <LineBreak/>
-                    <Run Text="⚠️ This feature uses UI Automation and may increase CPU usage slightly."
+                    <Run Text="?? This feature uses UI Automation and may increase CPU usage slightly."
                          Foreground="#FF6F00"/>
                 </TextBlock>
 
@@ -172,7 +178,7 @@
                        Padding="12"
                        Margin="0,24,0,0">
                     <StackPanel>
-                        <TextBlock Text="ℹ️ About GrammrPop"
+                        <TextBlock Text="?? About GrammrPop"
                                   FontWeight="SemiBold"
                                   Margin="0,0,0,8"/>
                         <TextBlock TextWrapping="Wrap"

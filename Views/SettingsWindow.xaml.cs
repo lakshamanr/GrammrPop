@@ -92,6 +92,13 @@ namespace GrammrPop.Views
                 var selectedLanguage = (LanguageComboBox.SelectedItem as ComboBoxItem)?.Tag.ToString() ?? "en-US";
                 settings.Language = selectedLanguage;
 
+                // Validate hotkey
+                var hotkey = HotkeyTextBox.Text?.Trim();
+                if (!string.IsNullOrWhiteSpace(hotkey))
+                {
+                    settings.Hotkey = hotkey;
+                }
+
                 var useLocal = UseLocalServerCheckBox.IsChecked == true;
                 settings.UseLocalServer = useLocal;
 
@@ -134,9 +141,12 @@ namespace GrammrPop.Views
                 // Refresh auto-detect feature if it was toggled
                 var app = Application.Current as App;
                 app?.RefreshAutoDetect();
+                
+                // Re-register hotkey if it changed
+                app?.ReRegisterHotkey();
 
                 MessageBox.Show(
-                    "Settings saved successfully!\n\nNote: Hotkey changes require restart.",
+                    "Settings saved successfully!",
                     "Settings Saved",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);

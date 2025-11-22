@@ -628,6 +628,8 @@ namespace GrammrPop.Services
         {
             try
             {
+                if (element is null)
+                    return null;
                 var rect = element.Current.BoundingRectangle;
 
                 if (rect.IsEmpty || rect.Width == 0 || rect.Height == 0)
