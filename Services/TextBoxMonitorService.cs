@@ -138,6 +138,16 @@ namespace GrammrPop.Services
                         Console.WriteLine($"    Type: {controlType}");
                         Console.WriteLine($"    Class: {className}");
                         Console.WriteLine($"    Process: {processName}");
+
+                        // 🔥 SPECIAL DETECTION ALERTS
+                        if (processName.ToLower().Contains("notepad++") || processName.ToLower().Contains("notepad"))
+                        {
+                            Console.WriteLine($"    🎯🎯🎯 NOTEPAD++ DETECTED!");
+                        }
+                        if (processName.ToLower().Contains("teams"))
+                        {
+                            Console.WriteLine($"    🎯🎯🎯 TEAMS DETECTED!");
+                        }
                     }
                     catch { /* Ignore debug logging errors */ }
                 }
@@ -253,11 +263,17 @@ namespace GrammrPop.Services
 
                 // Must be enabled and keyboard focusable
                 if (!isEnabled || !isKeyboardFocusable)
+                {
+                    Console.WriteLine($"    ❌ REJECTED: Not enabled ({isEnabled}) or not keyboard focusable ({isKeyboardFocusable})");
                     return false;
+                }
 
                 // Skip password fields for security
                 if (element.Current.IsPassword)
+                {
+                    Console.WriteLine($"    ❌ REJECTED: Password field (security)");
                     return false;
+                }
 
                 // EXPLICITLY REJECT non-input controls
                 if (controlType == ControlType.Button ||
@@ -285,6 +301,22 @@ namespace GrammrPop.Services
                     controlType == ControlType.Spinner ||
                     controlType == ControlType.Pane)          // DISABLE Panes (causes issues)
                 {
+                    // Only log if it's from specific apps we care about
+                    var processName = "";
+                    try
+                    {
+                        var hwnd = new IntPtr(element.Current.NativeWindowHandle);
+                        GetWindowThreadProcessId(hwnd, out uint processId);
+                        var process = System.Diagnostics.Process.GetProcessById((int)processId);
+                        processName = process.ProcessName.ToLower();
+                    }
+                    catch { }
+
+                    if (processName.Contains("teams") || processName.Contains("notepad"))
+                    {
+                        Console.WriteLine($"    ❌ REJECTED: Control type {controlType.ProgrammaticName} in {processName}");
+                        Console.WriteLine($"       ClassName: {className}");
+                    }
                     return false;
                 }
 
@@ -309,6 +341,7 @@ namespace GrammrPop.Services
                 }
 
                 // REJECT everything else
+                Console.WriteLine($"    ❌ REJECTED: Unknown control type {controlType.ProgrammaticName}, class: {className}");
                 return false;
             }
             catch
