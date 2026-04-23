@@ -26,10 +26,46 @@
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
+
+        <Style x:Key="ModeToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="MinWidth" Value="90"/>
+            <Setter Property="Background" Value="#E0E0E0"/>
+            <Setter Property="Foreground" Value="#424242"/>
+            <Setter Property="BorderBrush" Value="#BDBDBD"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="#2196F3"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="BorderBrush" Value="#1976D2"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#F5F5F5"/>
+                    <Setter Property="Foreground" Value="#9E9E9E"/>
+                    <Setter Property="Opacity" Value="0.6"/>
+                    <Setter Property="Cursor" Value="No"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#D0D0D0"/>
+                </Trigger>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsChecked" Value="True"/>
+                        <Condition Property="IsMouseOver" Value="True"/>
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="#1976D2"/>
+                </MultiTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
@@ -42,8 +78,40 @@
                    Text="Paste or type your text below:"
                    Style="{StaticResource HeaderTextStyle}"/>
 
+        <!-- Grammar Mode Toggle and Warning -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="Grammar Engine:" 
+                      VerticalAlignment="Center" 
+                      Margin="0,0,8,0"
+                      FontWeight="SemiBold"/>
+
+            <ToggleButton x:Name="LanguageToolButton"
+                         Content="LanguageTool"
+                         Style="{StaticResource ModeToggleButtonStyle}"
+                         Click="LanguageToolButton_Click"
+                         IsChecked="True"/>
+
+            <ToggleButton x:Name="BothButton"
+                         Content="Both"
+                         Style="{StaticResource ModeToggleButtonStyle}"
+                         Click="BothButton_Click"/>
+
+            <ToggleButton x:Name="OllamaButton"
+                         Content="Ollama"
+                         Style="{StaticResource ModeToggleButtonStyle}"
+                         Click="OllamaButton_Click"/>
+
+            <TextBlock x:Name="OllamaWarningText"
+                      Text="⚠ Ollama not running"
+                      Foreground="#F44336"
+                      FontSize="12"
+                      VerticalAlignment="Center"
+                      Margin="8,0,0,0"
+                      Visibility="Collapsed"/>
+        </StackPanel>
+
         <!-- Input TextBox -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Background="White"
                 BorderBrush="#CCCCCC"
                 BorderThickness="1"
@@ -60,7 +128,7 @@
         </Border>
 
         <!-- Check Button -->
-        <Button Grid.Row="2"
+        <Button Grid.Row="3"
                 Content="🔍 Check Grammar"
                 Click="CheckButton_Click"
                 Style="{StaticResource ActionButtonStyle}"
@@ -68,7 +136,7 @@
                 Margin="0,0,0,12"/>
 
         <!-- Suggestions List -->
-        <Border Grid.Row="3"
+        <Border Grid.Row="4"
                 Background="White"
                 BorderBrush="#CCCCCC"
                 BorderThickness="1"
@@ -125,7 +193,7 @@
         </Border>
 
         <!-- Action Buttons -->
-        <StackPanel Grid.Row="4"
+        <StackPanel Grid.Row="5"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right">
             <Button Content="Apply Selected"

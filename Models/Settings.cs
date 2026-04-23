@@ -11,5 +11,7 @@ namespace GrammrPop.Models
         public string LocalServerUrl { get; set; } = "http://localhost:8081/v2/check";
         public string? ApiKey { get; set; } = null; // Optional, encrypted when saved
         public bool EnableAutoDetect { get; set; } = true; // Show icon on textboxes automatically
+        public GrammarCorrectionMode CorrectionMode { get; set; } = GrammarCorrectionMode.LanguageTool;
+        public string OllamaEndpoint { get; set; } = "http://localhost:11434";
     }
 }

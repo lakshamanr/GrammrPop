@@ -79,7 +79,9 @@ namespace GrammrPop.Services
                     UseLocalServer = CurrentSettings.UseLocalServer,
                     LocalServerUrl = CurrentSettings.LocalServerUrl,
                     ApiKey = CurrentSettings.ApiKey,
-                    EnableAutoDetect = CurrentSettings.EnableAutoDetect
+                    EnableAutoDetect = CurrentSettings.EnableAutoDetect,
+                    CorrectionMode = CurrentSettings.CorrectionMode,
+                    OllamaEndpoint = CurrentSettings.OllamaEndpoint
                 };
 
                 // Encrypt API key if present

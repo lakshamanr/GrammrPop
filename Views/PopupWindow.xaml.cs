@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using GrammrPop.Models;
 using GrammrPop.Services;
@@ -13,10 +15,12 @@ namespace GrammrPop.Views
     {
         private readonly SettingsService _settingsService;
         private readonly LanguageToolClient _grammarClient;
+        private readonly OllamaClient _ollamaClient;
         private readonly ClipboardService _clipboardService;
         private ObservableCollection<SuggestionItem> _suggestions;
         private string _originalText = string.Empty;
         private Match[] _currentMatches = Array.Empty<Match>();
+        private bool _isOllamaAvailable = false;
 
         public PopupWindow(SettingsService settingsService)
         {
@@ -24,6 +28,7 @@ namespace GrammrPop.Views
 
             _settingsService = settingsService;
             _grammarClient = new LanguageToolClient();
+            _ollamaClient = new OllamaClient();
             _clipboardService = new ClipboardService();
             _suggestions = new ObservableCollection<SuggestionItem>();
 
@@ -33,7 +38,11 @@ namespace GrammrPop.Views
             _clipboardService.CapturePreviousWindow();
 
             // Focus the input textbox
-            Loaded += (s, e) => InputTextBox.Focus();
+            Loaded += async (s, e) =>
+            {
+                InputTextBox.Focus();
+                await InitializeGrammarModeAsync();
+            };
 
             // Auto-paste clipboard content if available
             if (Clipboard.ContainsText())
@@ -45,6 +54,72 @@ namespace GrammrPop.Views
                 }
                 catch { /* Ignore clipboard errors */ }
             }
+        }
+
+        private async Task InitializeGrammarModeAsync()
+        {
+            // Check Ollama availability
+            var settings = _settingsService.CurrentSettings;
+            _isOllamaAvailable = await _ollamaClient.IsAvailableAsync(settings.OllamaEndpoint);
+
+            // Update UI based on availability
+            if (!_isOllamaAvailable)
+            {
+                OllamaWarningText.Visibility = Visibility.Visible;
+                OllamaButton.IsEnabled = false;
+
+                // If current mode requires Ollama, fall back to LanguageTool
+                if (settings.CorrectionMode == GrammarCorrectionMode.Ollama ||
+                    settings.CorrectionMode == GrammarCorrectionMode.Both)
+                {
+                    settings.CorrectionMode = GrammarCorrectionMode.LanguageTool;
+                    _settingsService.Save();
+                }
+            }
+            else
+            {
+                OllamaWarningText.Visibility = Visibility.Collapsed;
+                OllamaButton.IsEnabled = true;
+            }
+
+            // Set initial toggle state
+            UpdateToggleButtons(settings.CorrectionMode);
+        }
+
+        private void UpdateToggleButtons(GrammarCorrectionMode mode)
+        {
+            LanguageToolButton.IsChecked = mode == GrammarCorrectionMode.LanguageTool;
+            BothButton.IsChecked = mode == GrammarCorrectionMode.Both;
+            OllamaButton.IsChecked = mode == GrammarCorrectionMode.Ollama;
+
+            // Disable "Both" button if Ollama is not available
+            if (!_isOllamaAvailable)
+            {
+                BothButton.IsEnabled = false;
+            }
+        }
+
+        private void LanguageToolButton_Click(object sender, RoutedEventArgs e)
+        {
+            SetGrammarMode(GrammarCorrectionMode.LanguageTool);
+        }
+
+        private void BothButton_Click(object sender, RoutedEventArgs e)
+        {
+            SetGrammarMode(GrammarCorrectionMode.Both);
+        }
+
+        private void OllamaButton_Click(object sender, RoutedEventArgs e)
+        {
+            SetGrammarMode(GrammarCorrectionMode.Ollama);
+        }
+
+        private void SetGrammarMode(GrammarCorrectionMode mode)
+        {
+            var settings = _settingsService.CurrentSettings;
+            settings.CorrectionMode = mode;
+            _settingsService.Save();
+            UpdateToggleButtons(mode);
         }
 
         private async void CheckButton_Click(object sender, RoutedEventArgs e)
@@ -73,20 +148,77 @@ namespace GrammrPop.Views
                 IsEnabled = false;
 
                 _originalText = text;
-
                 var settings = _settingsService.CurrentSettings;
-                var endpoint = settings.UseLocalServer
-                    ? settings.LocalServerUrl
-                    : settings.ApiEndpoint;
 
-                // Call LanguageTool API
-                var result = await _grammarClient.CheckAsync(
-                    text,
-                    settings.Language,
-                    endpoint,
-                    settings.ApiKey);
+                var allMatches = new List<Match>();
 
-                _currentMatches = result.Matches;
+                // Run LanguageTool if selected
+                if (settings.CorrectionMode == GrammarCorrectionMode.LanguageTool ||
+                    settings.CorrectionMode == GrammarCorrectionMode.Both)
+                {
+                    try
+                    {
+                        var endpoint = settings.UseLocalServer
+                            ? settings.LocalServerUrl
+                            : settings.ApiEndpoint;
+
+                        var result = await _grammarClient.CheckAsync(
+                            text,
+                            settings.Language,
+                            endpoint,
+                            settings.ApiKey);
+
+                        allMatches.AddRange(result.Matches);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(
+                            $"LanguageTool error:\n\n{ex.Message}",
+                            "GrammrPop - LanguageTool Error",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                    }
+                }
+
+                // Run Ollama if selected
+                if (settings.CorrectionMode == GrammarCorrectionMode.Ollama ||
+                    settings.CorrectionMode == GrammarCorrectionMode.Both)
+                {
+                    try
+                    {
+                        if (!_isOllamaAvailable)
+                        {
+                            throw new Exception("Ollama is not running. Please start Ollama and try again.");
+                        }
+
+                        var correctedText = await _ollamaClient.CorrectGrammarAsync(text, settings.OllamaEndpoint);
+                        var ollamaMatches = _ollamaClient.ConvertToMatches(text, correctedText);
+
+                        allMatches.AddRange(ollamaMatches);
+                    }
+                    catch (Exception ex)
+                    {
+                        // If only Ollama mode, show error; if Both mode, continue with LanguageTool results
+                        if (settings.CorrectionMode == GrammarCorrectionMode.Ollama)
+                        {
+                            MessageBox.Show(
+                                $"Ollama error:\n\n{ex.Message}",
+                                "GrammrPop - Ollama Error",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Error);
+                        }
+                        else
+                        {
+                            MessageBox.Show(
+                                $"Ollama error (continuing with LanguageTool results):\n\n{ex.Message}",
+                                "GrammrPop - Ollama Error",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Warning);
+                        }
+                    }
+                }
+
+                _currentMatches = allMatches.ToArray();
 
                 // Convert to UI-friendly suggestions
                 _suggestions.Clear();
@@ -104,7 +236,9 @@ namespace GrammrPop.Views
 
                     foreach (var match in _currentMatches)
                     {
-                        var errorText = text.Substring(match.Offset, match.Length);
+                        var errorText = match.Offset + match.Length <= text.Length 
+                            ? text.Substring(match.Offset, match.Length)
+                            : text; // Ollama returns full text replacement
                         var suggestedReplacement = match.Replacements?.FirstOrDefault()?.Value ?? "";
 
                         _suggestions.Add(new SuggestionItem
