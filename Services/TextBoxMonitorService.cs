@@ -60,7 +60,7 @@ namespace GrammrPop.Services
 
             _monitorTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(300) // Check every 300ms for faster detection
+                Interval = TimeSpan.FromMilliseconds(150) // ⚡ Reduced to 150ms for Grammarly-like responsiveness
             };
             _monitorTimer.Tick += MonitorTimer_Tick;
 
@@ -167,8 +167,8 @@ namespace GrammrPop.Services
                     {
                         _stableCount++;
 
-                        // Only fire event after element has been stable for 1 poll (300ms) - FASTER!
-                        if (_stableCount >= 1)
+                        // Require 2 stable polls (300ms) for better stability and fewer false positives
+                        if (_stableCount >= 2)
                         {
                             _currentStableElement = focusedElement;
                             _stableCount = 0;
@@ -179,7 +179,7 @@ namespace GrammrPop.Services
 
                             if (rect.HasValue && rect.Value.Width > 20 && rect.Value.Height > 10)
                             {
-                                Console.WriteLine($"✓ Textbox is STABLE (confirmed after 300ms)");
+                                Console.WriteLine($"✓ Textbox is STABLE (confirmed after 300ms with 2 polls)");
                                 Console.WriteLine($"  Size: {rect?.Width:F0}x{rect?.Height:F0} pixels");
                                 Console.WriteLine($"  Current text length: {text.Length} chars");
                                 Console.WriteLine($"  ⚡ Fast mode: Grammar checked 0.8s after typing stops");
@@ -288,6 +288,12 @@ namespace GrammrPop.Services
                 if (controlType == ControlType.Document)
                 {
                     return IsEditableDocumentControl(element, className);
+                }
+
+                // ACCEPT Custom controls (HTML editors: TinyMCE, CKEditor, Quill, Froala, etc.)
+                if (controlType == ControlType.Custom)
+                {
+                    return IsCustomTextControl(element, className);
                 }
 
                 // REJECT everything else
@@ -434,9 +440,9 @@ namespace GrammrPop.Services
                         // - Main message input: typically 400-1500px wide, 40-300px tall
                         // - Thread reply: typically 300-1000px wide, 40-200px tall
                         // - Search box: typically 200-600px wide, 30-50px tall
-                        // - Exclude full-screen displays (> 2000px wide or > 600px tall)
+                        // - ⚡ RELAXED: Allow up to 4000x1200px for split-screen and large compose windows
 
-                        var isReasonableSize = width >= 100 && width < 2000 && height >= 20 && height < 600;
+                        var isReasonableSize = width >= 100 && width < 4000 && height >= 20 && height < 1200;
                         var isProbablyMessageInput = width >= 300 && width < 1600 && height >= 30 && height < 350;
                         var isProbablyThreadReply = width >= 250 && width < 1200 && height >= 30 && height < 250;
                         var isProbablySearch = width >= 150 && width < 800 && height >= 20 && height < 80;
@@ -514,8 +520,8 @@ namespace GrammrPop.Services
                         var width = rect.Value.Width;
                         var height = rect.Value.Height;
 
-                        // Similar size constraints as Slack
-                        if (width >= 100 && width < 2000 && height >= 20 && height < 600)
+                        // Similar size constraints as Slack - RELAXED for large editors
+                        if (width >= 100 && width < 4000 && height >= 20 && height < 1200)
                         {
                             Console.WriteLine($"    ✅✅✅ {appName} INPUT ACCEPTED!");
                             Console.WriteLine($"        Size: {width:F0}x{height:F0}px - VALID");
@@ -557,8 +563,8 @@ namespace GrammrPop.Services
                         var width = rect.Value.Width;
                         var height = rect.Value.Height;
 
-                        // Browser textareas: 100-2000px wide, 30-500px tall
-                        if (width >= 100 && width < 2000 && height >= 30 && height < 500)
+                        // Browser textareas: 100-4000px wide, 30-1200px tall (RELAXED for large compose areas)
+                        if (width >= 100 && width < 4000 && height >= 30 && height < 1200)
                         {
                             Console.WriteLine($"    ✅✅✅ {browserName} TEXTAREA ACCEPTED!");
                             Console.WriteLine($"        Size: {width:F0}x{height:F0}px - VALID");
@@ -590,8 +596,8 @@ namespace GrammrPop.Services
                             var width = rect.Value.Width;
                             var height = rect.Value.Height;
 
-                            // Generic input boxes: typically < 2000px wide and < 500px tall
-                            if (width < 2000 && height < 500)
+                            // Generic input boxes: RELAXED to < 4000px wide and < 1200px tall
+                            if (width < 4000 && height < 1200)
                             {
                                 Console.WriteLine($"    ✅ Generic editable Document ACCEPTED");
                                 Console.WriteLine($"        Process: {processName}");
@@ -620,6 +626,169 @@ namespace GrammrPop.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"    ❌ Exception in IsEditableDocumentControl: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Detects Custom control types - typically HTML editors (TinyMCE, CKEditor, Quill, Froala)
+        /// and Electron/CEF-based text controls
+        /// </summary>
+        private bool IsCustomTextControl(AutomationElement element, string className)
+        {
+            try
+            {
+                Console.WriteLine($"    🎨 Analyzing Custom control (HTML editor/Electron):");
+                Console.WriteLine($"       ClassName: {className}");
+
+                // Get process name for framework detection
+                var processName = "unknown";
+                try
+                {
+                    var hwnd = new IntPtr(element.Current.NativeWindowHandle);
+                    GetWindowThreadProcessId(hwnd, out uint processId);
+                    var process = System.Diagnostics.Process.GetProcessById((int)processId);
+                    processName = process.ProcessName.ToLower();
+                }
+                catch { /* Ignore process name errors */ }
+
+                Console.WriteLine($"       Process: {processName}");
+
+                // Detect Electron apps (VS Code, Slack, Discord, Spotify, etc.)
+                var isElectron = processName.Contains("electron") || 
+                                className.Contains("Chrome_WidgetWin") ||
+                                className.Contains("Chrome_RenderWidgetHostHWND");
+
+                // Detect CEF (Chromium Embedded Framework) apps
+                var isCEF = className.Contains("CefBrowserWindow") ||
+                           className.Contains("Chrome_RenderWidgetHostHWND");
+
+                if (isElectron || isCEF)
+                {
+                    Console.WriteLine($"       ⚡ {(isElectron ? "Electron" : "CEF")} framework detected!");
+                }
+
+                // Get automation properties
+                var rect = GetElementBounds(element);
+                var automationId = "";
+                var name = "";
+
+                try
+                {
+                    automationId = element.Current.AutomationId ?? "";
+                    name = element.Current.Name ?? "";
+                }
+                catch { /* Ignore property access errors */ }
+
+                Console.WriteLine($"       AutomationId: '{automationId}'");
+                Console.WriteLine($"       Name: '{name}'");
+
+                // Check for common HTML editor indicators
+                var htmlEditorIndicators = new[]
+                {
+                    "tinymce",          // TinyMCE
+                    "ckeditor",         // CKEditor
+                    "ql-editor",        // Quill
+                    "quill",            // Quill
+                    "froala",           // Froala
+                    "jodit",            // Jodit
+                    "trumbowyg",        // Trumbowyg
+                    "summernote",       // Summernote
+                    "medium-editor",    // Medium Editor
+                    "contenteditable",  // Generic contenteditable
+                    "text-editor",      // Generic text editor
+                    "rich-text",        // Rich text editor
+                    "wysiwyg"           // WYSIWYG editor
+                };
+
+                var matchesHtmlEditor = htmlEditorIndicators.Any(indicator =>
+                    automationId.ToLower().Contains(indicator) ||
+                    name.ToLower().Contains(indicator) ||
+                    className.ToLower().Contains(indicator));
+
+                if (matchesHtmlEditor)
+                {
+                    Console.WriteLine($"       ✅ HTML editor pattern matched!");
+                }
+
+                // Check for editable patterns (ValuePattern or TextPattern)
+                bool hasEditableValuePattern = false;
+                if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? valuePattern))
+                {
+                    var pattern = (ValuePattern)valuePattern;
+                    if (!pattern.Current.IsReadOnly)
+                    {
+                        hasEditableValuePattern = true;
+                        Console.WriteLine($"       ✓ Has editable ValuePattern");
+                    }
+                }
+
+                bool hasTextPattern = false;
+                if (element.TryGetCurrentPattern(TextPattern.Pattern, out object? textPattern))
+                {
+                    hasTextPattern = true;
+                    Console.WriteLine($"       ✓ Has TextPattern");
+                }
+
+                // Accept if:
+                // 1. Has editable pattern (ValuePattern or TextPattern)
+                // 2. Size is reasonable (20x10 to 4000x1200)
+                // 3. Either: matches HTML editor pattern OR is Electron/CEF framework
+
+                if ((hasEditableValuePattern || hasTextPattern) && rect.HasValue)
+                {
+                    var width = rect.Value.Width;
+                    var height = rect.Value.Height;
+
+                    // Custom controls: very permissive size range
+                    if (width >= 20 && width < 4000 && height >= 10 && height < 1200)
+                    {
+                        // If it matches HTML editor pattern, accept immediately
+                        if (matchesHtmlEditor)
+                        {
+                            Console.WriteLine($"    ✅✅✅ HTML EDITOR ACCEPTED!");
+                            Console.WriteLine($"        Size: {width:F0}x{height:F0}px - VALID");
+                            Console.WriteLine($"        Pattern matched: HTML editor indicators");
+                            return true;
+                        }
+
+                        // If it's Electron/CEF and has editable pattern, accept
+                        if ((isElectron || isCEF) && hasEditableValuePattern)
+                        {
+                            Console.WriteLine($"    ✅✅✅ {(isElectron ? "ELECTRON" : "CEF")} TEXT CONTROL ACCEPTED!");
+                            Console.WriteLine($"        Size: {width:F0}x{height:F0}px - VALID");
+                            Console.WriteLine($"        Framework detected with editable pattern");
+                            return true;
+                        }
+
+                        // Generic custom control with editable ValuePattern - be cautious
+                        if (hasEditableValuePattern && width >= 50 && height >= 20)
+                        {
+                            Console.WriteLine($"    ✅ Generic Custom editable control ACCEPTED");
+                            Console.WriteLine($"        Size: {width:F0}x{height:F0}px - VALID");
+                            Console.WriteLine($"        Process: {processName}");
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"    ❌ Custom control REJECTED - Size {width:F0}x{height:F0}px invalid");
+                    }
+                }
+                else if (!rect.HasValue)
+                {
+                    Console.WriteLine($"    ❌ Custom control REJECTED - No bounds available");
+                }
+                else
+                {
+                    Console.WriteLine($"    ❌ Custom control REJECTED - No editable pattern");
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"    ❌ Exception in IsCustomTextControl: {ex.Message}");
                 return false;
             }
         }
