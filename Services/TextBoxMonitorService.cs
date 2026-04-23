@@ -21,6 +21,7 @@ namespace GrammrPop.Services
         private readonly DispatcherTimer _textCheckTimer;
         private readonly DispatcherTimer _hideDelayTimer;
         private readonly LanguageToolClient _grammarClient;
+        private readonly OllamaClient _ollamaClient;
         private readonly SettingsService _settingsService;
 
         private AutomationElement? _lastFocusedElement;
@@ -57,6 +58,7 @@ namespace GrammrPop.Services
         public TextBoxMonitorService(LanguageToolClient grammarClient, SettingsService settingsService)
         {
             _grammarClient = grammarClient;
+            _ollamaClient = new OllamaClient();
             _settingsService = settingsService;
 
             _monitorTimer = new DispatcherTimer
@@ -195,6 +197,15 @@ namespace GrammrPop.Services
                                     Bounds = rect.Value,
                                     Text = text
                                 });
+
+                                // 🔥 IMMEDIATE CHECK: If text already exists, trigger grammar check immediately
+                                if (!string.IsNullOrWhiteSpace(text))
+                                {
+                                    Console.WriteLine($"  🔥 IMMEDIATE CHECK: Text already exists, checking grammar now!");
+                                    // Trigger immediate check for existing text
+                                    _textCheckTimer.Stop();
+                                    _textCheckTimer.Start();
+                                }
 
                                 // Start monitoring text changes
                                 CheckForTextChanges(focusedElement);
@@ -1033,15 +1044,75 @@ namespace GrammrPop.Services
                 System.Diagnostics.Debug.WriteLine($"🔍 Auto-checking grammar for text: {_currentText.Substring(0, Math.Min(50, _currentText.Length))}...");
 
                 var settings = _settingsService.CurrentSettings;
-                var endpoint = settings.UseLocalServer ? settings.LocalServerUrl : settings.ApiEndpoint;
+                Match[] matches = Array.Empty<Match>();
+                bool checkSucceeded = false;
 
-                Console.WriteLine($"   API Endpoint: {endpoint}");
-                Console.WriteLine($"   Language: {settings.Language}");
-                Console.WriteLine($"   Sending request to LanguageTool...");
+                // ===== TRY OLLAMA FIRST (Priority 1) =====
+                try
+                {
+                    Console.WriteLine($"   🤖 Trying Ollama first...");
+                    var ollamaEndpoint = settings.OllamaEndpoint;
+                    var isOllamaAvailable = await _ollamaClient.IsAvailableAsync(ollamaEndpoint);
 
-                var result = await _grammarClient.CheckAsync(_currentText, settings.Language, endpoint, settings.ApiKey);
+                    if (isOllamaAvailable)
+                    {
+                        Console.WriteLine($"   ✓ Ollama is available, sending request...");
+                        var correctedText = await _ollamaClient.CorrectGrammarAsync(_currentText, ollamaEndpoint);
 
-                Console.WriteLine($"   ✓ Response received!");
+                        if (!string.IsNullOrEmpty(correctedText) && correctedText != _currentText)
+                        {
+                            matches = _ollamaClient.ConvertToMatches(_currentText, correctedText);
+                            checkSucceeded = true;
+                            Console.WriteLine($"   ✅ Ollama check completed! Found {matches.Length} suggestion(s)");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"   ✓ Ollama found no corrections needed");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"   ⚠️  Ollama not available at {ollamaEndpoint}, will try LanguageTool");
+                    }
+                }
+                catch (Exception ollamaEx)
+                {
+                    Console.WriteLine($"   ⚠️  Ollama check failed: {ollamaEx.Message}");
+                    Console.WriteLine($"   → Falling back to LanguageTool...");
+                }
+
+                // ===== FALLBACK TO LANGUAGETOOL (Priority 2) =====
+                if (!checkSucceeded)
+                {
+                    try
+                    {
+                        var endpoint = settings.UseLocalServer ? settings.LocalServerUrl : settings.ApiEndpoint;
+                        Console.WriteLine($"   🌐 Using LanguageTool");
+                        Console.WriteLine($"   API Endpoint: {endpoint}");
+                        Console.WriteLine($"   Language: {settings.Language}");
+                        Console.WriteLine($"   Sending request to LanguageTool...");
+
+                        var result = await _grammarClient.CheckAsync(_currentText, settings.Language, endpoint, settings.ApiKey);
+
+                        Console.WriteLine($"   ✓ LanguageTool response received!");
+
+                        if (result.Matches != null && result.Matches.Length > 0)
+                        {
+                            matches = result.Matches;
+                            checkSucceeded = true;
+                            Console.WriteLine($"   ✅ LanguageTool found {matches.Length} errors");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"   ✓ LanguageTool found no errors");
+                        }
+                    }
+                    catch (Exception ltEx)
+                    {
+                        Console.WriteLine($"   ❌ LanguageTool check also failed: {ltEx.Message}");
+                        throw; // Re-throw to trigger outer error handler
+                    }
+                }
 
                 // Get bounds again in case window moved
                 var rect = GetElementBounds(_currentStableElement);
@@ -1051,27 +1122,27 @@ namespace GrammrPop.Services
                     return;
                 }
 
-                if (result.Matches != null && result.Matches.Length > 0)
+                if (matches != null && matches.Length > 0)
                 {
-                    Console.WriteLine($"   ✅ FOUND {result.Matches.Length} GRAMMAR ERROR(S)!");
-                    for (int i = 0; i < Math.Min(3, result.Matches.Length); i++)
+                    Console.WriteLine($"   ✅ FOUND {matches.Length} GRAMMAR ERROR(S)!");
+                    for (int i = 0; i < Math.Min(3, matches.Length); i++)
                     {
-                        var match = result.Matches[i];
+                        var match = matches[i];
                         Console.WriteLine($"      #{i+1}: {match.Message}");
                     }
-                    if (result.Matches.Length > 3)
+                    if (matches.Length > 3)
                     {
-                        Console.WriteLine($"      ... and {result.Matches.Length - 3} more");
+                        Console.WriteLine($"      ... and {matches.Length - 3} more");
                     }
                     Console.WriteLine($"   → Firing GrammarErrorsFound event to show icon\n");
-                    System.Diagnostics.Debug.WriteLine($"✓ Found {result.Matches.Length} grammar errors");
+                    System.Diagnostics.Debug.WriteLine($"✓ Found {matches.Length} grammar errors");
 
                     GrammarErrorsFound?.Invoke(this, new GrammarErrorsFoundEventArgs
                     {
                         Element = _currentStableElement,
                         Bounds = rect.Value,
-                        ErrorCount = result.Matches.Length,
-                        Matches = result.Matches,
+                        ErrorCount = matches.Length,
+                        Matches = matches,
                         OriginalText = _currentText
                     });
                 }
