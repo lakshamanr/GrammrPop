@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Automation.Text;
 using System.Windows.Threading;
 using GrammrPop.Models;
 
@@ -349,11 +350,35 @@ namespace GrammrPop.Services
                     automationId = element.Current.AutomationId ?? "";
                     name = element.Current.Name ?? "";
                     helpText = element.Current.HelpText ?? "";
-
-                    // Note: ARIA role detection removed to avoid compilation issues
-                    // LegacyIAccessiblePattern may not be available in all .NET versions
                 }
                 catch { /* Ignore property access errors */ }
+
+                // ===== ARIA ROLE DETECTION (Web Apps) =====
+                // Detect ARIA textbox, searchbox, email, url roles from element properties
+                // Check for ARIA textbox indicators in name/automationId/className
+                var ariaTextIndicators = new[] { "textbox", "searchbox", "email", "url", "textarea", "text-input", "search" };
+                var hasAriaTextRole = ariaTextIndicators.Any(indicator =>
+                    automationId.ToLower().Contains(indicator) ||
+                    name.ToLower().Contains(indicator) ||
+                    className.ToLower().Contains(indicator));
+
+                if (hasAriaTextRole)
+                {
+                    Console.WriteLine($"       ⚡ ARIA text role detected! (textbox/searchbox/email/url)");
+                }
+
+                // ===== CONTENTEDITABLE DETECTION (Web Editors) =====
+                // Many modern web apps use contenteditable divs (Gmail, Notion, Google Docs, etc.)
+                var contentEditableIndicators = new[] { "contenteditable", "editable", "composer", "editor" };
+                var hasContentEditableIndicator = contentEditableIndicators.Any(indicator =>
+                    className.ToLower().Contains(indicator) ||
+                    automationId.ToLower().Contains(indicator) ||
+                    name.ToLower().Contains(indicator));
+
+                if (hasContentEditableIndicator)
+                {
+                    Console.WriteLine($"       ⚡ ContentEditable detected! (likely web editor)");
+                }
 
                 Console.WriteLine($"       AutomationId: '{automationId}'");
                 Console.WriteLine($"       Name: '{name}'");
@@ -541,9 +566,9 @@ namespace GrammrPop.Services
                     Console.WriteLine($"    🌐 {browserName} BROWSER DETECTED - Checking for textarea...");
 
                     // Browser textareas typically have:
-                    // - ValuePattern (editable)
+                    // - ValuePattern (editable) OR TextPattern
+                    // - ARIA role (textbox, searchbox, email, url) OR contenteditable
                     // - Reasonable size
-                    // - May have aria-role or specific automation IDs
 
                     bool hasEditableValuePattern = false;
                     if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? valuePattern))
@@ -558,7 +583,8 @@ namespace GrammrPop.Services
 
                     bool hasTextPattern = element.TryGetCurrentPattern(TextPattern.Pattern, out object? _);
 
-                    if (rect.HasValue && (hasEditableValuePattern || hasTextPattern))
+                    // ENHANCED: Accept if has ARIA role OR contenteditable OR editable pattern
+                    if (rect.HasValue && (hasEditableValuePattern || hasTextPattern || hasAriaTextRole || hasContentEditableIndicator))
                     {
                         var width = rect.Value.Width;
                         var height = rect.Value.Height;
@@ -566,8 +592,13 @@ namespace GrammrPop.Services
                         // Browser textareas: 100-4000px wide, 30-1200px tall (RELAXED for large compose areas)
                         if (width >= 100 && width < 4000 && height >= 30 && height < 1200)
                         {
+                            var detectionMethod = hasAriaTextRole ? "ARIA role" :
+                                                hasContentEditableIndicator ? "contentEditable" :
+                                                hasEditableValuePattern ? "ValuePattern" : "TextPattern";
+
                             Console.WriteLine($"    ✅✅✅ {browserName} TEXTAREA ACCEPTED!");
                             Console.WriteLine($"        Size: {width:F0}x{height:F0}px - VALID");
+                            Console.WriteLine($"        Detection: {detectionMethod}");
                             return true;
                         }
                         else
@@ -579,6 +610,26 @@ namespace GrammrPop.Services
 
                 // ===== GENERIC DOCUMENT CONTROL (fallback) =====
                 Console.WriteLine($"    📄 Generic Document control check (non-Slack/Discord/Teams/Browser)...");
+
+                // ENHANCED: Also accept if has ARIA role or contentEditable, even without ValuePattern
+                if (hasAriaTextRole || hasContentEditableIndicator)
+                {
+                    Console.WriteLine($"        ⚡ Has ARIA/contentEditable indicator - likely web editor");
+
+                    if (rect.HasValue)
+                    {
+                        var width = rect.Value.Width;
+                        var height = rect.Value.Height;
+
+                        if (width >= 50 && width < 4000 && height >= 20 && height < 1200)
+                        {
+                            Console.WriteLine($"    ✅✅✅ Web Editor ACCEPTED (ARIA/contentEditable)!");
+                            Console.WriteLine($"        Size: {width:F0}x{height:F0}px - VALID");
+                            Console.WriteLine($"        Process: {processName}");
+                            return true;
+                        }
+                    }
+                }
 
                 // Must have ValuePattern to read/write text
                 if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? genericValuePattern))
