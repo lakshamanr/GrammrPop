@@ -55,6 +55,10 @@ namespace GrammrPop.Services
         private const uint WM_GETTEXT = 0x000D;
         private const uint WM_GETTEXTLENGTH = 0x000E;
 
+        // RichEdit messages for WordPad support
+        private const uint EM_GETTEXTLENGTHEX = 0x045F;
+        private const uint EM_GETTEXTEX = 0x045E;
+
         public TextBoxMonitorService(LanguageToolClient grammarClient, SettingsService settingsService)
         {
             _grammarClient = grammarClient;
@@ -324,6 +328,13 @@ namespace GrammrPop.Services
                 if (controlType == ControlType.Edit)
                 {
                     Console.WriteLine($"    ✓ Standard Edit control (Notepad/TextBox)");
+                    return true;
+                }
+
+                // ACCEPT RichEdit controls (WordPad, RichTextBox)
+                if (className.Contains("RichEdit", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"    ✓ RichEdit control detected (WordPad/RichTextBox)");
                     return true;
                 }
 
@@ -752,11 +763,13 @@ namespace GrammrPop.Services
                 // Detect Electron apps (VS Code, Slack, Discord, Spotify, etc.)
                 var isElectron = processName.Contains("electron") || 
                                 className.Contains("Chrome_WidgetWin") ||
-                                className.Contains("Chrome_RenderWidgetHostHWND");
+                                className.Contains("Chrome_RenderWidgetHostHWND") ||
+                                className.Contains("Intermediate D3D Window");
 
                 // Detect CEF (Chromium Embedded Framework) apps
                 var isCEF = className.Contains("CefBrowserWindow") ||
-                           className.Contains("Chrome_RenderWidgetHostHWND");
+                           className.Contains("Chrome_RenderWidgetHostHWND") ||
+                           className.Contains("CefBrowser");
 
                 if (isElectron || isCEF)
                 {
@@ -919,6 +932,17 @@ namespace GrammrPop.Services
                     return GetScintillaText(element);
                 }
 
+                // Special handling for RichEdit controls (WordPad, RichTextBox)
+                if (!string.IsNullOrEmpty(className) && className.Contains("RichEdit", StringComparison.OrdinalIgnoreCase))
+                {
+                    var richEditText = GetRichEditText(element);
+                    if (!string.IsNullOrEmpty(richEditText))
+                    {
+                        Console.WriteLine($"   ✓ Extracted {richEditText.Length} chars from RichEdit control");
+                        return richEditText;
+                    }
+                }
+
                 // Try ValuePattern first (for standard textboxes)
                 if (element.TryGetCurrentPattern(ValuePattern.Pattern, out object? valuePattern))
                 {
@@ -995,6 +1019,46 @@ namespace GrammrPop.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"   ❌ Failed to get Scintilla text: {ex.Message}");
+                return string.Empty;
+            }
+        }
+
+        private string GetRichEditText(AutomationElement element)
+        {
+            try
+            {
+                var hwnd = new IntPtr(element.Current.NativeWindowHandle);
+                if (hwnd == IntPtr.Zero)
+                    return string.Empty;
+
+                // First try standard WM_GETTEXT (works for WordPad and most RichEdit controls)
+                int length = (int)SendMessage(hwnd, WM_GETTEXTLENGTH, IntPtr.Zero, IntPtr.Zero);
+
+                if (length > 0)
+                {
+                    // Limit text length to prevent huge allocations
+                    if (length > 1000000) // 1 MB limit
+                    {
+                        Console.WriteLine($"   ⚠️  RichEdit text too large ({length} chars), truncating to 1MB");
+                        length = 1000000;
+                    }
+
+                    StringBuilder sb = new StringBuilder(length + 1);
+                    SendMessage(hwnd, WM_GETTEXT, new IntPtr(sb.Capacity), sb);
+                    var text = sb.ToString();
+
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        Console.WriteLine($"   ✓ Extracted {text.Length} chars from RichEdit (WM_GETTEXT)");
+                        return text;
+                    }
+                }
+
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"   ❌ Failed to get RichEdit text: {ex.Message}");
                 return string.Empty;
             }
         }

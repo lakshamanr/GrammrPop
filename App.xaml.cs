@@ -362,7 +362,7 @@ namespace GrammrPop
             settingsItem.Click += (s, e) =>
             {
                 var settingsWindow = new SettingsWindow(_settingsService);
-                settingsWindow.Show();
+                settingsWindow.ShowDialog();
             };
             contextMenu.Items.Add(settingsItem);
 
