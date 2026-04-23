@@ -227,12 +227,12 @@ namespace GrammrPop.Views
                 {
                     NoSuggestionsText.Text = "✓ No grammar issues found! Your text looks good.";
                     NoSuggestionsText.Visibility = Visibility.Visible;
-                    SuggestionsListView.Visibility = Visibility.Collapsed;
+                    SuggestionsScrollViewer.Visibility = Visibility.Collapsed;
                 }
                 else
                 {
                     NoSuggestionsText.Visibility = Visibility.Collapsed;
-                    SuggestionsListView.Visibility = Visibility.Visible;
+                    SuggestionsScrollViewer.Visibility = Visibility.Visible;
 
                     foreach (var match in _currentMatches)
                     {

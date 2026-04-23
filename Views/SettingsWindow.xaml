@@ -75,8 +75,10 @@
                         <TextBox x:Name="HotkeyTextBox"
                                ui:ControlHelper.PlaceholderText="e.g. Ctrl+Shift+G"
                                ui:ControlHelper.CornerRadius="6"
-                               Padding="12,8"
+                               Padding="12,10"
                                FontSize="14"
+                               MinHeight="40"
+                               VerticalContentAlignment="Center"
                                Margin="0,0,0,8"/>
 
                         <TextBlock Style="{StaticResource HintTextStyle}">
@@ -133,17 +135,21 @@
                         <TextBox x:Name="ApiEndpointTextBox"
                                ui:ControlHelper.PlaceholderText="https://api.languagetool.org"
                                ui:ControlHelper.CornerRadius="6"
-                               Padding="12,8"
+                               Padding="12,10"
                                FontSize="13"
                                FontFamily="Consolas"
+                               MinHeight="40"
+                               VerticalContentAlignment="Center"
                                Margin="0,0,0,12"/>
 
                         <TextBlock Text="API Key (Optional)" Style="{StaticResource SettingLabelStyle}"/>
                         <TextBox x:Name="ApiKeyTextBox"
                                ui:ControlHelper.PlaceholderText="Leave empty for public API"
                                ui:ControlHelper.CornerRadius="6"
-                               Padding="12,8"
+                               Padding="12,10"
                                FontSize="13"
+                               MinHeight="40"
+                               VerticalContentAlignment="Center"
                                Margin="0,0,0,8"/>
 
                         <TextBlock Style="{StaticResource HintTextStyle}">
@@ -190,8 +196,10 @@
                         <TextBox x:Name="HistorySizeTextBox"
                                ui:ControlHelper.PlaceholderText="50"
                                ui:ControlHelper.CornerRadius="6"
-                               Padding="12,8"
+                               Padding="12,10"
                                FontSize="14"
+                               MinHeight="40"
+                               VerticalContentAlignment="Center"
                                Margin="0,0,0,8"/>
 
                         <TextBlock Text="💡 Number of recent grammar checks to keep in history"
