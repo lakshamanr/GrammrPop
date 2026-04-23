@@ -1,26 +1,40 @@
 <Application x:Class="GrammrPop.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
              Startup="Application_Startup"
              Exit="Application_Exit"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
-        <!-- Global styles -->
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="MinWidth" Value="80"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- ModernWpfUI Theme Resources -->
+                <ui:ThemeResources AccentColor="#6366F1" />
+                <ui:XamlControlsResources />
+            </ResourceDictionary.MergedDictionaries>
 
-        <Style TargetType="TextBox">
-            <Setter Property="Padding" Value="8"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontFamily" Value="Segoe UI"/>
-        </Style>
+            <!-- Custom App-Specific Styles -->
+            <SolidColorBrush x:Key="PrimaryBrush" Color="#6366F1"/>
+            <SolidColorBrush x:Key="SuccessBrush" Color="#10B981"/>
+            <SolidColorBrush x:Key="ErrorBrush" Color="#EF4444"/>
+            <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B"/>
 
-        <Style TargetType="ListView">
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#CCCCCC"/>
-        </Style>
+            <!-- Shadow Effect for Cards -->
+            <DropShadowEffect x:Key="CardShadow" 
+                            ShadowDepth="4" 
+                            BlurRadius="16" 
+                            Opacity="0.1" 
+                            Color="Black"/>
+
+            <!-- Animation Storyboards -->
+            <Storyboard x:Key="FadeInAnimation">
+                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                               From="0" To="1" Duration="0:0:0.3">
+                    <DoubleAnimation.EasingFunction>
+                        <CubicEase EasingMode="EaseOut"/>
+                    </DoubleAnimation.EasingFunction>
+                </DoubleAnimation>
+            </Storyboard>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>
